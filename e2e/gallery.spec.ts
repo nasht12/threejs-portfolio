@@ -113,6 +113,25 @@ for (const id of ['merced-river', 'isle-of-the-dead', 'fog-hollow', 'indigo-ridg
   });
 }
 
+test('the Isle scene is driven from the page: accessible look controls, shareable state, live stats', async ({ page }) => {
+  test.setTimeout(300_000); // the scene builds its world on the CPU here
+  await page.goto('./#/scene/isle-of-the-dead');
+  const dialog = page.getByRole('dialog', { name: 'Isle of the Dead' });
+  const light = dialog.getByRole('group', { name: 'Light and weather' });
+  const rain = light.getByRole('button', { name: 'Rain' });
+  await expect(rain).toBeVisible({ timeout: 240_000 }); // drawn once the scene announces what it offers
+  await rain.click();
+  await expect(rain).toHaveAttribute('aria-pressed', 'true');
+  // the scene really changed, and its own URL now carries the look
+  await expect(page.frameLocator('iframe').locator('[data-light="rain"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.frames().find(f => f.url().includes('scenes/isle-of-the-dead.html'))?.url()).toContain('light=rain');
+  await dialog.getByRole('group', { name: 'Viewpoint' }).getByRole('button', { name: 'Tombs' }).click();
+  await expect.poll(() => page.frames().find(f => f.url().includes('scenes/isle-of-the-dead.html'))?.url()).toContain('view=tombs');
+  // Frame stats now reports from inside the scene
+  await dialog.getByRole('button', { name: 'Frame stats' }).click();
+  await expect(page.locator('.scene-stats')).toContainText(/fps\s+\d/, { timeout: 20_000 });
+});
+
 test('the light tier drops the device pixel ratio', async ({ page }) => {
   await page.goto('./?quality=low');
   await expect(page.getByText(/Hanging the pictures/)).toHaveCount(0, { timeout: 45_000 });

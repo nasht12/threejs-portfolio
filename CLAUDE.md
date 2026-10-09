@@ -22,6 +22,7 @@ Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the s
 
 - `src/data/works.ts`: the collection. One entry per scene; the only file to touch to add or reword a work.
 - `src/state/store.ts`: the single Zustand store (selection, mode, quality tier, event log). Every state change goes through an action here.
+- `src/state/sceneLink.ts`: a second, separate store for the open scene (its look options, current look and live stats), fed by the scene-link `postMessage` protocol documented there. `SceneViewer` draws the look controls from it; scenes that don't speak the protocol simply get none.
 - `src/state/route.ts`: hash routes (`#/work/<id>`, `#/scene/<id>`). `src/ui/hooks.ts` syncs them with the store.
 - `src/carousel/`: everything inside the `<Canvas>`: `Rig` turns the ring and moves the camera, `Card` is one portal card, `layout.ts` holds all world-space numbers and the fake-window maths, `transition.ts` the shared dive progress.
 - `src/gallery/`: `useLoopTexture` (preview video lifecycle) and the first-load `Loader`.
@@ -68,6 +69,14 @@ Nothing raises it again. `?quality=low|high` pins it (demos, tests). Any new eff
 - Opening a scene moves focus to its Back button; closing returns focus to where it was. Escape closes from inside the iframe too.
 - No single-character shortcuts. `prefers-reduced-motion` snaps the ring, skips the dive animation and keeps video off.
 - The axe test in `e2e/gallery.spec.ts` must stay at zero WCAG A/AA violations.
+
+## Scenes with a look store (the scene-link protocol)
+
+Isle of the Dead (edited in `Desktop/scene-director`, copied here, then `node scripts/patch-scenes.mjs`) keeps its viewpoint,
+light and style in a vanilla Zustand store (`zustand/vanilla` + `persist` from jsDelivr, no build step): buttons call
+`setLook`, the scene's own `goView/setLight/setStyle` apply and `recordLook` the change, the hash mirrors it
+(`#view=…&light=…&style=…`, a shareable look), and when embedded it posts `ready/look/perf` to the portfolio and accepts
+`set-look`. To bring another scene onto it, apply the same pattern in scene-director first.
 
 ## Adding a scene
 

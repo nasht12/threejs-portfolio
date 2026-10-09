@@ -107,6 +107,7 @@
     .note,.hint{display:none;}
   }
   @media (prefers-reduced-motion: reduce){ .hud{animation-duration:.3s;} .ring{animation-duration:2.4s;} }
+  .embedded .controls > .panel.seg{ display:none; }
 </style>
 
 <div id="app">
@@ -431,6 +432,8 @@
 <script type="module">
 import * as THREE from 'three';
 import { adaptQuality, terrainGrid } from './adaptive-quality.js';
+import { createStore } from 'https://cdn.jsdelivr.net/npm/zustand@5.0.15/vanilla/+esm';
+import { persist } from 'https://cdn.jsdelivr.net/npm/zustand@5.0.15/middleware/+esm';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -3645,8 +3648,9 @@ function goView(name){
   const v = VIEWS[name];
   tween = { start:performance.now(), p0:camera.position.clone(), t0:controls.target.clone(), p1:v.pos, t1:v.target };
   for (const b of viewBtns) b.setAttribute('aria-pressed', String(b.dataset.view === name));
+  recordLook({ view:name });
 }
-for (const b of viewBtns) b.addEventListener('click', () => goView(b.dataset.view));
+for (const b of viewBtns) b.addEventListener('click', () => setLook({ view:b.dataset.view }));
 if (QS.has('debug')) window.__scene = { MOCAP, mocapToJSON, camera, controls, horses, people, canoes, VIEWS, goView,
   seek:(text, T, fps = 30) => { const S = parseScript(text); if (S.errors.length) return S.errors; directorStart(S); step(0, 0); for (let f = 1; f <= Math.round(T*fps); f++) step(1/fps, f/fps); renderView(1/fps); return DIRECTOR.t.toFixed(2); } };
 document.getElementById('resetView').addEventListener('click', () => goView('home'));
@@ -3708,9 +3712,9 @@ const styleBtns = [...document.querySelectorAll('[data-style]')];
 function setStyle(style){
   paintTarget = style === 'painted' ? 1 : 0;
   for (const b of styleBtns) b.setAttribute('aria-pressed', String(b.dataset.style === style));
-  try { localStorage.setItem('isle-style-v2', style); } catch(e){}
+  recordLook({ style });
 }
-for (const b of styleBtns) b.addEventListener('click', () => setStyle(b.dataset.style));
+for (const b of styleBtns) b.addEventListener('click', () => setLook({ style:b.dataset.style }));
 {
   let saved = null;
   try { saved = localStorage.getItem('isle-style-v2'); } catch(e){}
@@ -3816,6 +3820,7 @@ function setLight(name, over = 0){
   Object.assign(LIGHT, { name, from:lightNow(), to:LIGHTS[name], t:0, dur:over });
   if (over <= 0){ LIGHT.t = 1; applyLight(LIGHTS[name]); }
   for (const b of lightBtns) b.setAttribute('aria-pressed', String(b.dataset.light === name));
+  recordLook({ light:name });
 }
 function lightTick(dt){
   if (LIGHT.t >= 1) return;
@@ -3824,15 +3829,95 @@ function lightTick(dt){
   for (const key in LIGHT.to){ const a = LIGHT.from[key], b = LIGHT.to[key]; out[key] = Array.isArray(b) ? b.map((v, i) => a[i] + (v - a[i])*k) : a + (b - a)*k; }
   applyLight(out);
 }
-for (const b of lightBtns) b.addEventListener('click', () => {
-  setLight(b.dataset.light, reduceMotion ? 0 : 2.5);
-  try { localStorage.setItem('isle-light', b.dataset.light); } catch(e){}
-});
+for (const b of lightBtns) b.addEventListener('click', () => setLook({ light:b.dataset.light }));
 {
   let saved = null;
   try { saved = localStorage.getItem('isle-light'); } catch(e){}
   if (RENDER) saved = QS.get('light');
   setLight(LIGHTS[saved] ? saved : 'golden', 0);
+}
+
+// ---- the look, in one store --------------------------------------------------------------
+// Viewpoint, light and style live in a Zustand store. The panel buttons (and, when embedded, the portfolio
+// over postMessage) change it; goView / setLight / setStyle apply it; the URL hash mirrors it, so a look is a
+// shareable link (#view=landing&light=rain&style=painted); persist remembers light and style between visits.
+// Offline renders keep reading their query string and never create the store.
+var LOOK_STORE;
+let lookFromScene = false;
+const STYLES = ['natural', 'painted'];
+function validLook(p){
+  const out = {};
+  if (p.view && VIEWS[p.view]) out.view = p.view;
+  if (p.light && LIGHTS[p.light]) out.light = p.light;
+  if (p.style && STYLES.includes(p.style)) out.style = p.style;
+  return out;
+}
+// the scene changed itself (a director cue, Walk, a startup default): note it without re-applying it
+function recordLook(patch){
+  if (!LOOK_STORE) return;
+  lookFromScene = true;
+  try { LOOK_STORE.setState(validLook(patch)); } finally { lookFromScene = false; }
+}
+function setLook(patch){
+  if (LOOK_STORE){ LOOK_STORE.getState().set(patch); return; }
+  if (patch.view) goView(patch.view);
+  if (patch.light) setLight(patch.light, reduceMotion ? 0 : 2.5);
+  if (patch.style) setStyle(patch.style);
+}
+const EMBEDDED = window.parent !== window;
+const toParent = msg => { if (EMBEDDED) try { parent.postMessage({ from:'scene', ...msg }, location.origin); } catch(e){} };
+const lookOf = s => ({ view:s.view, light:s.light, style:s.style });
+const lookHash = s => '#' + new URLSearchParams(lookOf(s));
+
+if (!RENDER){
+  LOOK_STORE = createStore(persist(set => ({
+    view:'home', light:LIGHT.name, style:paintTarget ? 'painted' : 'natural',  // what the page already applied
+    set: patch => set(validLook(patch)),
+  }), { name:'isle-look', partialize: s => ({ light:s.light, style:s.style }) }));
+
+  // a shared link wins over what this browser remembers; then bring the scene in line, without transitions
+  const linked = validLook(Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
+  if (Object.keys(linked).length) LOOK_STORE.setState(linked);
+  const s0 = LOOK_STORE.getState();
+  if (s0.light !== LIGHT.name) setLight(s0.light, 0);
+  if ((s0.style === 'painted') !== (paintTarget === 1)){ setStyle(s0.style); paintPass.uniforms.uAmount.value = paintTarget; }
+  if (s0.view !== 'home') goView(s0.view);
+  history.replaceState(null, '', lookHash(s0));
+
+  LOOK_STORE.subscribe((s, p) => {
+    if (s.view === p.view && s.light === p.light && s.style === p.style) return;
+    if (!lookFromScene){
+      if (s.view !== p.view) goView(s.view);
+      if (s.light !== p.light) setLight(s.light, reduceMotion ? 0 : 2.5);
+      if (s.style !== p.style) setStyle(s.style);
+    }
+    history.replaceState(null, '', lookHash(s));
+    toParent({ type:'look', look:lookOf(s) });
+  });
+
+  // the bridge: tell the portfolio what can be changed and what it is now; take changes back
+  const opts = (btns, key) => btns.map(b => ({ id:b.dataset[key], label:b.textContent.trim() }));
+  const OPTIONS = { view:opts(viewBtns, 'view'), light:opts(lightBtns, 'light'), style:opts(styleBtns, 'style') };
+  const hello = () => toParent({ type:'ready', options:OPTIONS, look:lookOf(LOOK_STORE.getState()) });
+  addEventListener('message', e => {
+    if (e.source !== parent || e.origin !== location.origin || !e.data || e.data.to !== 'scene') return;
+    if (e.data.type === 'hello') hello();
+    else if (e.data.type === 'set-look') setLook(e.data.look || {});
+  });
+  hello();
+
+  if (EMBEDDED){
+    document.documentElement.classList.add('embedded');
+    // telemetry for the portfolio's Frame stats: frames counted here; quality from adaptive-quality.js, if present
+    let frames = 0, since = performance.now();
+    const count = () => { frames++; requestAnimationFrame(count); };
+    requestAnimationFrame(count);
+    setInterval(() => {
+      const now = performance.now(), d = document.documentElement.dataset;
+      toParent({ type:'perf', fps:Math.round(frames*10000/(now - since))/10, rung:d.qualityRung || null, scale:d.renderScale || null, grass:d.grass || null });
+      frames = 0; since = now;
+    }, 1000);
+  }
 }
 
 // ---- characters ------------------------------------------------------

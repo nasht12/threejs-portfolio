@@ -26,7 +26,8 @@ portal into the live scene.
 - **Holds a frame budget.** A monitor measures active frame times (idle gaps excluded) and drops to a light tier when the median passes 22 ms. That tier has DPR 1 and no video. The tier is chosen silently: small machines, slow or metered connections (Network Information API) and a slow first load start light. `?quality=low` pins it for demos, and **Frame stats** shows draw calls, triangles, GPU resources and frame time live.
 - **Cleans up after itself.** A preview video exists only while its card is at the front: its decoder and texture are disposed when the card turns away. The ring's WebGL context is released while a scene is open, so only one context exists at a time.
 - **Keyboard and screen reader first.** The list of works mirrors the ring (arrow keys turn it, Enter on the front card goes in). A live region announces where you are, focus moves into and back out of scenes, and `prefers-reduced-motion` is respected. An axe scan in CI holds it at zero WCAG A/AA violations.
-- **One store.** Selection, mode, quality tier and an interaction event log live in a single Zustand store. The URL (`#/work/…`, `#/scene/…`) follows it, so deep links and the Back button work.
+- **Stores split by lifetime.** The gallery store holds selection, mode, quality tier and an interaction event log; the URL (`#/work/…`, `#/scene/…`) follows it, so deep links and the Back button work. A separate scene-link store holds the open scene's look and live stats, fed over `postMessage`.
+- **Scenes you can drive from the page.** Isle of the Dead keeps its viewpoint, light and style in a vanilla Zustand store. The portfolio draws those controls as accessible buttons above the scene, the scene's URL mirrors the look (`#view=tombs&light=rain&style=painted` is a shareable link), and *Frame stats* reports the scene's own frame rate and quality rung.
 
 ## Keeping the scenes smooth on any GPU
 
