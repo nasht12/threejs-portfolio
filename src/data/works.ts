@@ -38,7 +38,7 @@ export const WORKS: readonly Work[] = [
     aspect: 16 / 9,
     scene: 'scenes/merced-river.html',
     controls: 'Drag to look · scroll to zoom · W A S D to walk',
-    size: '≈ 14 MB',
+    size: '≈ 9 MB',
   },
   {
     id: 'isle-of-the-dead',
@@ -56,7 +56,7 @@ export const WORKS: readonly Work[] = [
     aspect: 1008 / 720,
     scene: 'scenes/isle-of-the-dead.html',
     controls: 'Drag to look · scroll to zoom · W A S D to walk',
-    size: '≈ 14 MB',
+    size: '≈ 9 MB',
   },
   {
     id: 'fog-hollow',
@@ -74,7 +74,7 @@ export const WORKS: readonly Work[] = [
     aspect: 16 / 9,
     scene: 'scenes/fog-hollow.html',
     controls: 'Drag to look · W A S D to walk · Shift to hurry',
-    size: '≈ 14 MB',
+    size: '≈ 9 MB',
   },
   {
     id: 'indigo-ridge',

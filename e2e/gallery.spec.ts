@@ -82,15 +82,24 @@ test('deep links open straight into a scene', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Gulf Stream Study' })).toBeVisible();
 });
 
-test('every scene page is deployed and loads its assets', async ({ page }) => {
-  const failed: string[] = [];
-  page.on('response', r => { if (r.status() >= 400 && !r.url().endsWith('/favicon.ico')) failed.push(`${r.status()} ${r.url()}`); });
-  for (const id of ['merced-river', 'isle-of-the-dead', 'fog-hollow', 'indigo-ridge', 'dents-du-midi', 'gulf-stream-study', 'rigging-bench']) {
-    await page.goto(`./scenes/${id}.html`);
-    await expect(page.locator('canvas').first()).toBeAttached({ timeout: 30_000 });
-  }
-  expect(failed).toEqual([]);
-});
+// One test per scene: each builds its world on the CPU (SwiftShader), which takes a while on a 2-core CI runner.
+for (const id of ['merced-river', 'isle-of-the-dead', 'fog-hollow', 'indigo-ridge', 'dents-du-midi', 'gulf-stream-study', 'rigging-bench']) {
+  test(`scene ${id} is deployed and loads every asset`, async ({ page }) => {
+    test.setTimeout(300_000);
+    const failed: string[] = [];
+    page.on('response', r => { if (r.status() >= 400 && !r.url().endsWith('/favicon.ico')) failed.push(`${r.status()} ${r.url()}`); });
+    page.on('requestfailed', r => { if (!r.url().endsWith('/favicon.ico')) failed.push(`failed ${r.url()}`); });
+    // The three painted landscapes share one engine that fetches its rock and ground scans after building the terrain.
+    const engineAssets = ['merced-river', 'isle-of-the-dead', 'fog-hollow'].includes(id)
+      ? ['tex/cliff_side_diff.jpg', 'tex/forest_ground_04_nor.jpg'].map(path => page.waitForResponse(r => r.url().endsWith(path) && r.ok(), { timeout: 240_000 }))
+      : [];
+    await page.goto(`./scenes/${id}.html`, { waitUntil: 'load' });
+    await Promise.all(engineAssets);
+    await expect(page.locator('canvas').first()).toBeAttached({ timeout: 90_000 });
+    await page.waitForLoadState('networkidle', { timeout: 90_000 });
+    expect(failed).toEqual([]);
+  });
+}
 
 test('Chromebook tier drops the reflective floor and the device pixel ratio', async ({ page }) => {
   await waitForHall(page);

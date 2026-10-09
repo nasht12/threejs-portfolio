@@ -44,5 +44,5 @@ scene was checked against that scene's code.
 
 ## Credits
 
-Rock and ground textures: [Poly Haven](https://polyhaven.com) (CC0). Motion capture: Universal Animation Library by
-Quaternius (CC0). Paintings referenced: Albert Bierstadt, Arnold Böcklin, Gustave Courbet, Winslow Homer.
+Rock and ground textures: [Poly Haven](https://polyhaven.com) (CC0). Motion capture (baked into the scenes): Universal
+Animation Library by Quaternius (CC0). Paintings referenced: Albert Bierstadt, Arnold Böcklin, Gustave Courbet, Winslow Homer.
