@@ -10,7 +10,7 @@ async function waitForHall(page: Page) {
   await expect(page.getByText(/Hanging the pictures/)).toHaveCount(0, { timeout: 45_000 });
 }
 
-test('the hall renders pixels, not a blank canvas', async ({ page }) => {
+test('the ring renders cards, not a blank canvas', async ({ page }) => {
   await waitForHall(page);
   await page.waitForTimeout(1500);
   // Read pixels from a real screenshot: a WebGL canvas without preserveDrawingBuffer can't be read back reliably.
@@ -25,14 +25,15 @@ test('the hall renders pixels, not a blank canvas', async ({ page }) => {
     ctx.drawImage(img, 0, 0, 160, 56);
     const d = ctx.getImageData(0, 0, 160, 56).data;
     let n = 0;
-    for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 60) n++;
+    // count pixels that differ clearly from the #f0f0f0 background: that's the cards
+    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 240) + Math.abs(d[i + 1] - 240) + Math.abs(d[i + 2] - 240) > 60) n++;
     return n;
   }, band.toString('base64'));
   expect(lit).toBeGreaterThan(400);
-  await page.screenshot({ path: 'test-results/hall.png' });
+  await page.screenshot({ path: 'test-results/ring.png' });
 });
 
-test('keyboard: walk the list, step closer, enter the scene, come back', async ({ page }) => {
+test('keyboard: turn the ring, dive through the portal, come back', async ({ page }) => {
   await waitForHall(page);
 
   await page.keyboard.press('Tab'); // skip link
@@ -45,13 +46,14 @@ test('keyboard: walk the list, step closer, enter the scene, come back', async (
   await expect(current(page)).toBeFocused();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Isle of the Dead');
   await expect(status(page)).toContainText('Isle of the Dead, 2 of 7');
-
-  await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Enter the scene' })).toBeVisible();
   await expect(page).toHaveURL(/#\/work\/isle-of-the-dead$/);
-  await page.screenshot({ path: 'test-results/focus.png' });
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: 'test-results/ring-turned.png' });
 
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter'); // dive through the front card's portal
+  await expect(page.getByRole('button', { name: 'Entering…' })).toBeVisible();
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: 'test-results/dive.png' });
   const dialog = page.getByRole('dialog', { name: 'Isle of the Dead' });
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(/#\/scene\/isle-of-the-dead$/);
@@ -69,7 +71,6 @@ test('keyboard: walk the list, step closer, enter the scene, come back', async (
 
 test('the browser Back button closes a scene', async ({ page }) => {
   await waitForHall(page);
-  await page.getByRole('button', { name: 'Step closer' }).click();
   await page.getByRole('button', { name: 'Enter the scene' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.goBack();
@@ -109,10 +110,11 @@ test('the light tier drops the device pixel ratio', async ({ page }) => {
   await expect(page.locator('.stats')).toContainText('dpr     1.00 · tier low');
 });
 
-test('no WCAG A/AA violations in the hall or at a frame', async ({ page }) => {
+test('no WCAG A/AA violations on the ring, before and after turning it', async ({ page }) => {
   await waitForHall(page);
   const scan = () => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect((await scan()).violations).toEqual([]);
-  await page.getByRole('button', { name: 'Step closer' }).click();
+  await page.getByRole('button', { name: /Gulf Stream Study/ }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Gulf Stream Study');
   expect((await scan()).violations).toEqual([]);
 });

@@ -9,21 +9,16 @@ export function useRouteSync() {
     const apply = () => {
       const route = parseHash(location.hash, ids);
       const s = useGallery.getState();
-      if (route.mode === 'walk') {
-        if (s.mode === 'scene') s.closeScene();
-        useGallery.getState().unfocus();
-        return;
-      }
-      const i = ids.indexOf(route.id!);
       if (s.mode === 'scene' && route.mode !== 'scene') s.closeScene();
-      useGallery.getState().focus(i);
+      if (s.mode === 'focus') s.unfocus();
+      if (route.id) useGallery.getState().select(ids.indexOf(route.id));
       if (route.mode === 'scene') useGallery.getState().openScene();
     };
     apply();
     const unsub = useGallery.subscribe((s, prev) => {
       if (s.mode === prev.mode && s.index === prev.index) return;
       const hash = toHash(s.mode, s.works[s.index].id);
-      if (hash === location.hash || (hash === '#/' && !location.hash)) return;
+      if (hash === location.hash || s.mode === 'focus') return;
       if (s.mode === 'scene') history.pushState(null, '', hash);
       else history.replaceState(null, '', hash);
     });
@@ -32,7 +27,7 @@ export function useRouteSync() {
   }, []);
 }
 
-/** Arrow keys walk, Enter steps closer / goes in, Escape steps back — when focus isn't in a control that owns those keys. */
+/** Arrow keys turn the ring, Enter dives into the front card, Escape backs out — when focus isn't in a control that owns those keys. */
 export function useGalleryKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -44,7 +39,7 @@ export function useGalleryKeys() {
       if (owned) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); s.step(1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); s.step(-1); }
-      else if (e.key === 'Enter') { e.preventDefault(); if (s.mode === 'focus') s.openScene(); else s.focus(); }
+      else if (e.key === 'Enter') { e.preventDefault(); s.focus(); }
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);

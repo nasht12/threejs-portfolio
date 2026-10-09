@@ -31,17 +31,18 @@ describe('selection', () => {
 });
 
 describe('mode transitions', () => {
-  it('walk → focus → scene → focus → walk', () => {
+  it('walk → focus (diving) → scene → back to the ring at the same card', () => {
     const s = fresh();
     const { focus, openScene, closeScene, unfocus } = s.getState();
     focus(3);
     expect(s.getState().mode).toBe('focus');
+    unfocus(); // Escape mid-dive backs out
+    expect(s.getState().mode).toBe('walk');
+    focus(3);
     openScene();
     expect(s.getState().mode).toBe('scene');
     closeScene();
-    expect(s.getState()).toMatchObject({ mode: 'focus', index: 3 });
-    unfocus();
-    expect(s.getState().mode).toBe('walk');
+    expect(s.getState()).toMatchObject({ mode: 'walk', index: 3 });
   });
 
   it('logs every transition once, in order, with the work id', () => {
@@ -102,10 +103,11 @@ describe('quality', () => {
 
 describe('routes', () => {
   const ids = WORKS.map(w => w.id);
-  it('round-trips focus and scene routes', () => {
-    for (const mode of ['focus', 'scene'] as const) {
-      expect(parseHash(toHash(mode, ids[2]), ids)).toEqual({ mode, id: ids[2] });
-    }
+  it('round-trips card and scene routes', () => {
+    expect(parseHash(toHash('walk', ids[2]), ids)).toEqual({ mode: 'walk', id: ids[2] });
+    expect(parseHash(toHash('scene', ids[2]), ids)).toEqual({ mode: 'scene', id: ids[2] });
+    // diving is transient: it never gets its own URL
+    expect(toHash('focus', ids[2])).toBe(toHash('walk', ids[2]));
   });
   it('falls back to the hall for unknown or malformed hashes', () => {
     expect(parseHash('#/scene/not-a-work', ids)).toEqual({ mode: 'walk' });

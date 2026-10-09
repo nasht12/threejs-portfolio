@@ -5,7 +5,7 @@ import { SceneViewer } from './ui/SceneViewer';
 import { useFocusReturn, useGalleryKeys, useReducedMotionSync, useRouteSync } from './ui/hooks';
 
 // three.js, R3F and drei are the bulk of the bundle; the interface paints before they arrive.
-const Gallery = lazy(() => import('./gallery/Gallery'));
+const Carousel = lazy(() => import('./carousel/Carousel'));
 
 export default function App() {
   const mode = useGallery(s => s.mode);
@@ -24,7 +24,7 @@ export default function App() {
       <div className="app" inert={inScene}>
         {/* The canvas is decorative for assistive tech: everything it shows is in the list and caption. */}
         <div className="stage" aria-hidden="true">
-          {!inScene && <Suspense fallback={<p className="loader">Opening the gallery…</p>}><Gallery /></Suspense>}
+          {!inScene && <Suspense fallback={<p className="loader">Opening the gallery…</p>}><Carousel /></Suspense>}
         </div>
         <Header />
         <main className="panel">

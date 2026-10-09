@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { WORKS, type Work } from '../data/works';
 
+/** walk = turning the ring · focus = diving through the front card's portal · scene = live scene open */
 export type Mode = 'walk' | 'focus' | 'scene';
 export type Quality = 'high' | 'low';
 export type QualitySetting = 'auto' | Quality;
@@ -114,7 +115,7 @@ export function createGalleryStore(init: Init = {}) {
       },
       closeScene: () => {
         if (get().mode !== 'scene') return;
-        logged({ type: 'close', id: idAt(get().index) }, { mode: 'focus' });
+        logged({ type: 'close', id: idAt(get().index) }, { mode: 'walk' });
       },
       setQualitySetting: q => {
         if (q === get().qualitySetting) return;

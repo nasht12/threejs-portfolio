@@ -4,7 +4,6 @@ import { statsSink } from '../perf/statsSink';
 import { SITE } from '../config';
 
 export function Header() {
-  const mode = useGallery(s => s.mode);
   const showStats = useGallery(s => s.showStats);
   const toggleStats = useGallery(s => s.toggleStats);
 
@@ -13,7 +12,7 @@ export function Header() {
       <div className="brand">
         <p className="title">Three.js Scenes</p>
         <p className="hint" aria-hidden="true">
-          {mode === 'focus' ? 'Click the picture again or press Enter to go in · Esc steps back' : 'Drag or ← → to walk · click a picture to step closer'}
+          Drag, scroll or ← → to turn · click the front card to go in
         </p>
       </div>
       <div className="tools">
@@ -29,7 +28,7 @@ export function Caption() {
   const index = useGallery(s => s.index);
   const n = useGallery(s => s.works.length);
   const mode = useGallery(s => s.mode);
-  const { focus, unfocus, openScene } = useGallery.getState();
+  const { focus } = useGallery.getState();
 
   return (
     <section className="caption" aria-labelledby="cap-title">
@@ -39,14 +38,9 @@ export function Caption() {
       <p className="blurb">{work.blurb}</p>
       <ul className="tech">{work.tech.map(t => <li key={t}>{t}</li>)}</ul>
       <div className="actions">
-        {mode === 'focus' ? (
-          <>
-            <button type="button" className="primary" onClick={openScene}>Enter the scene</button>
-            <button type="button" onClick={unfocus}>Back to the wall</button>
-          </>
-        ) : (
-          <button type="button" className="primary" onClick={() => focus()}>Step closer</button>
-        )}
+        <button type="button" className="primary" disabled={mode === 'focus'} onClick={() => focus()}>
+          {mode === 'focus' ? 'Entering…' : 'Enter the scene'}
+        </button>
         <span className="size">Live scene {work.size}</span>
       </div>
     </section>
@@ -57,7 +51,6 @@ export function Caption() {
 export function WorkNav() {
   const works = useGallery(s => s.works);
   const index = useGallery(s => s.index);
-  const mode = useGallery(s => s.mode);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const move = (to: number) => {
@@ -71,8 +64,8 @@ export function WorkNav() {
   };
   const activate = (i: number) => {
     const s = useGallery.getState();
-    if (s.mode === 'focus' && s.index === i) s.openScene();
-    else s.focus(i);
+    if (s.index === i) s.focus(i);
+    else s.select(i);
   };
 
   return (
@@ -91,12 +84,11 @@ export function WorkNav() {
             >
               <span className="n">{i + 1}</span>
               <span className="t">{w.title}</span>
-              {i === index && mode === 'focus' && <span className="sr-only"> (standing here)</span>}
             </button>
           </li>
         ))}
       </ol>
-      <p id="works-help" className="sr-only">Arrow keys move along the wall. Enter steps closer; Enter again opens the live scene.</p>
+      <p id="works-help" className="sr-only">Arrow keys turn the ring. Enter on the front card goes through its portal into the live scene.</p>
     </nav>
   );
 }
@@ -108,10 +100,9 @@ export function Announcer() {
     const w = s.works[s.index];
     const where = `${w.title}, ${s.index + 1} of ${s.works.length}${w.after ? `. ${w.after}` : ''}.`;
     if (s.mode !== prev.mode) {
-      if (s.mode === 'focus' && prev.mode === 'walk') setMessage(`Standing at ${where} Press Enter to open the live scene, Escape to step back.`);
+      if (s.mode === 'focus') setMessage(`Entering ${w.title}…`);
       else if (s.mode === 'scene') setMessage(`Opened ${w.title}. ${w.controls}.`);
-      else if (prev.mode === 'scene') setMessage(`Back in the gallery at ${w.title}.`);
-      else if (s.mode === 'walk') setMessage('Back at the wall.');
+      else if (prev.mode === 'scene') setMessage(`Back at ${w.title}, ${s.index + 1} of ${s.works.length}.`);
     } else if (s.index !== prev.index) {
       setMessage(where);
     } else if (s.autoQuality !== prev.autoQuality && s.qualitySetting === 'auto') {

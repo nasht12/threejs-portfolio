@@ -1,7 +1,8 @@
 # threejs-portfolio
 
-A walkable 3D gallery (React 19 + React Three Fiber + Zustand + Vite + TypeScript) that hangs real-time
-Three.js scenes as framed works. Each frame opens its live scene full screen. Deployed to GitHub Pages
+A ring of portal cards (React 19 + React Three Fiber + Zustand + Vite + TypeScript), after pmndrs' "enter portals"
+example, into real-time Three.js scenes. Turning the ring brings a card to the front; going through its portal opens
+the live scene full screen. The ring scales to any number of cards. Deployed to GitHub Pages
 at https://nasht12.github.io/threejs-portfolio/ by `.github/workflows/deploy.yml` on every push to `main`.
 
 ## Commands
@@ -21,7 +22,8 @@ Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the s
 - `src/data/works.ts`: the collection. One entry per scene; the only file to touch to add or reword a work.
 - `src/state/store.ts`: the single Zustand store (selection, mode, quality tier, event log). Every state change goes through an action here.
 - `src/state/route.ts`: hash routes (`#/work/<id>`, `#/scene/<id>`). `src/ui/hooks.ts` syncs them with the store.
-- `src/gallery/`: everything inside the `<Canvas>`. `layout.ts` holds all world-space numbers.
+- `src/carousel/`: everything inside the `<Canvas>`: `Rig` turns the ring and moves the camera, `Card` is one portal card, `layout.ts` holds all world-space numbers and the fake-window maths, `transition.ts` the shared dive progress.
+- `src/gallery/`: `useLoopTexture` (preview video lifecycle) and the first-load `Loader`.
 - `src/perf/`: the frame-budget monitor and the stats probe.
 - `src/ui/`: DOM: header, caption, list of works, live-region announcer, scene viewer.
 - `public/scenes/`: the live scenes, copied as-is from their source project (vanilla three.js, loaded from jsDelivr). Treat them as build inputs, not app code.
@@ -33,7 +35,11 @@ Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the s
 - **No React state per frame.** Per-frame values live in refs and are read in `useFrame`. Read the store with `useGallery.getState()` inside `useFrame`; subscribe with selectors only for things that change the React tree.
 - **Never allocate in `useFrame`** (no `new Vector3()` per frame). Allocate once in a ref or `useMemo`.
 - **Dispose what you create imperatively.** Declarative JSX objects are disposed by R3F on unmount. Anything made in an effect (video elements, `VideoTexture`, render targets) is torn down in that effect's cleanup; see `useLoopTexture.ts`.
-- **One WebGL context at a time.** The gallery canvas is unmounted while a scene is open. Keep it that way.
+- **One WebGL context at a time.** The carousel canvas is unmounted while a scene is open. Keep it that way.
+- **One real portal at a time.** Each `MeshPortalMaterial` renders its world into three screen-sized targets every frame,
+  so only the front card gets one. The others fake the same window with a cropped poster (`windowCrop`), which
+  matches what the portal shows so the swap at the front doesn't jump. Cards facing away are not drawn.
+- **No tone mapping** (`<Canvas flat>`): the home page is photographs; drei's portal shaders would otherwise tone-map them.
 - Colour: posters and video are `SRGBColorSpace` and drawn with `toneMapped={false}`, so they match the source exactly.
 
 ## Performance tiers
@@ -43,9 +49,7 @@ Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the s
 | | high | low |
 |---|---|---|
 | DPR | 1 to 2 | 1 |
-| Floor | `MeshReflectorMaterial` (second render pass) | plain glossy standard material |
-| Picture lights | one `spotLight` per frame | additive light-pool planes only |
-| Preview video | plays when you step up to a frame | posters only |
+| Preview video | plays inside the front card | posters only |
 
 The tier is decided behind the scenes; there is no visible control. It starts low on machines with ≤ 4 cores or
 ≤ 4 GB of memory, on slow or metered connections (`navigator.connection`: 2g/3g, downlink under 1.5 Mbps, Save-Data),
@@ -54,10 +58,10 @@ Nothing raises it again. `?quality=low|high` pins it (demos, tests). Any new eff
 
 ## Accessibility (a requirement, not polish)
 
-- Everything the canvas offers has a DOM equivalent: the list of works (roving tabindex, arrow keys, Home/End) and the caption buttons. The canvas wrapper is `aria-hidden`.
+- Everything the canvas offers has a DOM equivalent: the list of works (roving tabindex, arrow keys, Home/End; Enter on the front card goes in) and the caption's "Enter the scene" button. The canvas wrapper is `aria-hidden`.
 - Location changes are announced through the polite live region in `Announcer`. Write a message for any new mode.
 - Opening a scene moves focus to its Back button; closing returns focus to where it was. Escape closes from inside the iframe too.
-- No single-character shortcuts. `prefers-reduced-motion` snaps the camera and keeps video off.
+- No single-character shortcuts. `prefers-reduced-motion` snaps the ring, skips the dive animation and keeps video off.
 - The axe test in `e2e/gallery.spec.ts` must stay at zero WCAG A/AA violations.
 
 ## Adding a scene
