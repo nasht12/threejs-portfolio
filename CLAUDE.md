@@ -1,0 +1,68 @@
+# threejs-portfolio
+
+A walkable 3D gallery (React 19 + React Three Fiber + Zustand + Vite + TypeScript) that hangs real-time
+Three.js scenes as framed works. Each frame opens its live scene full screen. Deployed to GitHub Pages
+at https://nasht12.github.io/threejs-portfolio/ by `.github/workflows/deploy.yml` on every push to `main`.
+
+## Commands
+
+| | |
+|---|---|
+| `npm run dev` | Vite dev server at `/threejs-portfolio/` |
+| `npm run typecheck` | `tsc -b` (TypeScript 7) |
+| `npm test` | Vitest: store, routing, layout and frame-budget logic |
+| `npm run test:e2e` | Playwright against a production build, system Chrome + SwiftShader (no GPU needed) |
+| `node scripts/capture-posters.mjs [id…]` | Re-capture poster stills for scenes without rendered video |
+
+Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the same three before deploying.
+
+## Map
+
+- `src/data/works.ts`: the collection. One entry per scene; the only file to touch to add or reword a work.
+- `src/state/store.ts`: the single Zustand store (selection, mode, quality tier, event log). Every state change goes through an action here.
+- `src/state/route.ts`: hash routes (`#/work/<id>`, `#/scene/<id>`). `src/ui/hooks.ts` syncs them with the store.
+- `src/gallery/`: everything inside the `<Canvas>`. `layout.ts` holds all world-space numbers.
+- `src/perf/`: the frame-budget monitor and the stats probe.
+- `src/ui/`: DOM: header, caption, list of works, live-region announcer, scene viewer.
+- `public/scenes/`: the live scenes, copied as-is from their source project (vanilla three.js, loaded from jsDelivr). Treat them as build inputs, not app code.
+- `public/media/`: posters (`<id>.jpg`) and 6 s preview loops (`<id>.mp4`, H.264, about 1 to 2 MB).
+
+## Rules for code in the canvas
+
+- **The canvas renders on demand** (`frameloop="demand"`). Anything that changes what is on screen must call `invalidate()`: store changes, video frames and camera motion already do. If something "only appears after a resize", a render request is missing.
+- **No React state per frame.** Per-frame values live in refs and are read in `useFrame`. Read the store with `useGallery.getState()` inside `useFrame`; subscribe with selectors only for things that change the React tree.
+- **Never allocate in `useFrame`** (no `new Vector3()` per frame). Allocate once in a ref or `useMemo`.
+- **Dispose what you create imperatively.** Declarative JSX objects are disposed by R3F on unmount. Anything made in an effect (video elements, `VideoTexture`, render targets) is torn down in that effect's cleanup; see `useLoopTexture.ts`.
+- **One WebGL context at a time.** The gallery canvas is unmounted while a scene is open. Keep it that way.
+- Colour: posters and video are `SRGBColorSpace` and drawn with `toneMapped={false}`, so they match the source exactly.
+
+## Performance tiers
+
+`effectiveQuality()` is `high` or `low`. Low is the Chromebook tier and must stay cheap:
+
+| | high | low |
+|---|---|---|
+| DPR | 1 to 2 | 1 |
+| Floor | `MeshReflectorMaterial` (second render pass) | plain glossy standard material |
+| Picture lights | one `spotLight` per frame | additive light-pool planes only |
+| Preview video | plays when you step up to a frame | posters only |
+
+Auto starts low on machines with ≤ 4 cores or ≤ 4 GB of memory, and the frame-budget monitor drops to low when the
+median active frame time over 90 frames exceeds 22 ms. A visitor's explicit choice is never overridden. Any new
+effect needs a low-tier answer before it ships.
+
+## Accessibility (a requirement, not polish)
+
+- Everything the canvas offers has a DOM equivalent: the list of works (roving tabindex, arrow keys, Home/End) and the caption buttons. The canvas wrapper is `aria-hidden`.
+- Location changes are announced through the polite live region in `Announcer`. Write a message for any new mode.
+- Opening a scene moves focus to its Back button; closing returns focus to where it was. Escape closes from inside the iframe too.
+- No single-character shortcuts. `prefers-reduced-motion` snaps the camera and keeps video off.
+- The axe test in `e2e/gallery.spec.ts` must stay at zero WCAG A/AA violations.
+
+## Adding a scene
+
+1. Copy the page into `public/scenes/<id>.html`, with any relative assets beside it.
+2. Add a poster: a frame from a render (`ffmpeg -ss T -i render.mp4 -frames:v 1 -q:v 3 public/media/<id>.jpg`), or run `node scripts/capture-posters.mjs <id>` after adding its settle time there.
+3. Optional loop: 6 s, 720p, H.264, `-crf 22 -movflags +faststart`, as `public/media/<id>.mp4`.
+4. Add the entry to `src/data/works.ts`. Every `tech` line must be something the scene's code actually does.
+5. Add the id to the asset test in `e2e/gallery.spec.ts`.

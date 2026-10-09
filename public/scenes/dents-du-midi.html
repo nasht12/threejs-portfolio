@@ -1,0 +1,1120 @@
+<title>Dents du Midi</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;1,400&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#f4f1e8;
+    --ink-dim:#d6d3c6;
+    --bg:#26343a;
+    --accent:#d9b36a;
+    --line:rgba(244,241,232,.28);
+    --panel:rgba(22,30,32,.46);
+    color-scheme: dark;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);}
+  #app{position:relative;width:100%;height:100dvh;overflow:hidden;background:linear-gradient(#8fb9cc,#6d8a84 60%,#3c4d3a);touch-action:none;}
+  canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+  canvas#scene:active{cursor:grabbing;}
+  .panel{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--ink);
+    font-family:'DM Mono',ui-monospace,Menlo,monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  .hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
+    padding:calc(22px + env(safe-area-inset-top,0px)) 24px calc(22px + env(safe-area-inset-bottom,0px));
+    opacity:0;animation:hudIn 1.6s cubic-bezier(.2,.7,.2,1) .9s forwards;}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;}
+  .row.bottom{align-items:flex-end;}
+  .caption{display:flex;flex-direction:column;gap:6px;text-shadow:0 1px 18px rgba(10,20,24,.55);}
+  .eyebrow{font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);opacity:.9;}
+  h1{font-family:'Libre Caslon Text',Georgia,'Times New Roman',serif;font-style:italic;font-weight:400;font-size:clamp(30px,4.8vw,52px);line-height:1;margin:0;color:var(--ink);}
+  .note{margin:4px 0 0;font-family:'Libre Caslon Text',Georgia,serif;font-size:14px;line-height:1.5;color:var(--ink);max-width:36ch;text-shadow:0 1px 14px rgba(10,20,24,.6);}
+  .controls{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+  .seg{display:flex;gap:2px;padding:4px;}
+  .seg button,.btn{appearance:none;border:0;background:transparent;color:var(--ink-dim);font:inherit;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    padding:8px 13px;border-radius:9px;cursor:pointer;transition:background .3s,color .3s;}
+  .seg button:hover,.btn:hover{color:var(--ink);}
+  .seg button[aria-pressed="true"]{background:var(--accent);color:#1d2322;}
+  .seg button:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .btn{border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);pointer-events:auto;}
+  .hint{margin:0;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.05em;color:var(--ink);opacity:.85;text-shadow:0 1px 10px rgba(10,20,24,.6);}
+  @keyframes hudIn{to{opacity:1;}}
+  #loader{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;background:var(--bg);transition:opacity 1s ease, visibility 1s;}
+  #loader.hide{opacity:0;visibility:hidden;}
+  .ring{width:40px;height:40px;border-radius:50%;border:2px solid rgba(244,241,232,.16);border-top-color:#d9b36a;animation:spin 1s linear infinite;}
+  .load-note{margin:0;font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .err{font-family:'DM Mono',ui-monospace,monospace;color:var(--ink-dim);font-size:12px;text-align:center;max-width:280px;margin:0;}
+  @media (max-width:560px){
+    .hud{padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(14px + env(safe-area-inset-bottom,0px));}
+    .note,.hint{display:none;}
+  }
+  @media (prefers-reduced-motion: reduce){ .hud{animation-duration:.3s;} .ring{animation-duration:2.4s;} }
+</style>
+
+<div id="app">
+  <canvas id="scene" aria-label="Alpine lake below the Dents du Midi with a goatherd and goats. Drag to look around, scroll to zoom."></canvas>
+  <div class="hud" id="hud">
+    <div class="row">
+      <div class="caption">
+        <span class="eyebrow">After Gustave Courbet &middot; 1877</span>
+        <h1>Dents du Midi</h1>
+        <p class="note">A goatherd rests on the knoll above the lake while the herd grazes; cloud shadows cross the massif.</p>
+      </div>
+      <button type="button" class="btn" id="resetView">Reset view</button>
+    </div>
+    <div class="row bottom">
+      <span></span>
+      <div class="controls">
+        <div class="panel seg" role="group" aria-label="Rendering style">
+          <button type="button" id="style-painted" data-style="painted" aria-pressed="true">Oil paint</button>
+          <button type="button" id="style-natural" data-style="natural" aria-pressed="false">Natural</button>
+        </div>
+        <p class="hint">Drag to look around &middot; scroll to zoom</p>
+      </div>
+    </div>
+  </div>
+  <div id="loader"><div class="ring" id="ring"></div><p class="load-note" id="loadNote">Laying out the meadow</p><p class="err" id="errMsg" hidden>WebGL could not start in this browser. Reload, or try a browser with hardware acceleration on.</p></div>
+</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+const loaderEl = document.getElementById('loader');
+function fail(err){
+  console.error(err);
+  document.getElementById('ring').hidden = true;
+  document.getElementById('loadNote').hidden = true;
+  document.getElementById('errMsg').hidden = false;
+}
+setTimeout(()=>{ try { build(); } catch(err){ fail(err); } }, 60);
+
+function build(){
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const canvas = document.getElementById('scene');
+
+// Offline render mode (local only): ?render&w=3840&h=2160&fps=60&dur=10&name=clip&style=painted
+const QS = new URLSearchParams(location.search);
+const RENDER = QS.has('render') ? {
+  w: +QS.get('w') || 3840, h: +QS.get('h') || 2160, fps: +QS.get('fps') || 60, dur: +QS.get('dur') || 10,
+  name: (QS.get('name') || 'dents-du-midi').replace(/[^\w.-]/g, '_')
+} : null;
+if (RENDER) document.getElementById('hud').hidden = true;
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rnd = mulberry32(18770601);
+const R = (a,b)=>a+(b-a)*rnd();
+
+/* =====================================================================
+   Terrain fields. The foreground knoll exists in JS and GLSL (grass sits
+   on it); the massif is JS-only (baked into a mesh).
+===================================================================== */
+const fract = x => x - Math.floor(x);
+const sstep = (e0,e1,x)=>{ const t=Math.min(Math.max((x-e0)/(e1-e0),0),1); return t*t*(3-2*t); };
+function h12(x,y){ let a=fract(x*0.1031), b=fract(y*0.1031), c=fract(x*0.1031); const d=a*(b+33.33)+b*(c+33.33)+c*(a+33.33); a+=d; b+=d; c+=d; return fract((a+b)*c); }
+function tvn(x,y){ const ix=Math.floor(x), iy=Math.floor(y), fx=x-ix, fy=y-iy, ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy);
+  const a=h12(ix,iy), b=h12(ix+1,iy), c=h12(ix,iy+1), d=h12(ix+1,iy+1), m1=a+(b-a)*ux, m2=c+(d-c)*ux; return m1+(m2-m1)*uy; }
+function tfbm4(x,y){ let v=0,a=0.5; for(let i=0;i<4;i++){ v+=a*tvn(x,y); x=x*2.03+1.7; y=y*2.03+9.2; a*=0.5; } return v; }
+function tridged5(x,y){ let v=0,a=0.5,w=1; for(let i=0;i<5;i++){ let n=1-Math.abs(2*tvn(x,y)-1); n*=n; v+=a*n*w; w=Math.min(Math.max(n*1.6,0),1); x=x*2.07+3.1; y=y*2.07+1.3; a*=0.5; } return v; }
+
+function fgH(x, z){
+  let h = 5 + 0.04*z;
+  const a = (x+15)/35, b = (z+18)/30;
+  h += 4.2*Math.exp(-(a*a + b*b));
+  h += 0.03*Math.min(Math.max(-x-60, 0), 140) - 0.12*Math.max(-x-240, 0);
+  h -= 0.08*Math.max(x-25, 0);
+  h += 0.08*Math.max(z-50, 0);
+  h += (tfbm4(x*0.03+2.1, z*0.03-1.3) - 0.5)*1.6 + (tvn(x*0.15, z*0.15) - 0.5)*0.3;
+  return h;
+}
+const TERRAIN_GLSL = `
+  float th12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+  float tvn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
+    float a = th12(i), b = th12(i+vec2(1.0,0.0)), c = th12(i+vec2(0.0,1.0)), d = th12(i+vec2(1.0,1.0));
+    float m1 = a + (b-a)*u.x; float m2 = c + (d-c)*u.x; return m1 + (m2-m1)*u.y; }
+  float tfbm4(vec2 p){ float v=0.0, a=0.5; for(int i=0;i<4;i++){ v += a*tvn(p); p = p*2.03 + vec2(1.7,9.2); a *= 0.5; } return v; }
+  float fgH(vec2 p){
+    float x = p.x, z = p.y;
+    float h = 5.0 + 0.04*z;
+    float a = (x+15.0)/35.0, b = (z+18.0)/30.0;
+    h += 4.2*exp(-(a*a + b*b));
+    h += 0.03*clamp(-x-60.0, 0.0, 140.0) - 0.12*max(-x-240.0, 0.0);
+    h -= 0.08*max(x-25.0, 0.0);
+    h += 0.08*max(z-50.0, 0.0);
+    h += (tfbm4(vec2(x*0.03+2.1, z*0.03-1.3)) - 0.5)*1.6 + (tvn(p*0.15) - 0.5)*0.3;
+    return h;
+  }
+`;
+
+const PEAKS = [[-520,170,230],[-260,210,200],[40,240,210],[300,280,240],[560,230,200],[820,200,210],[1080,170,230]];
+function massifH(x, z){
+  const v = (-z - 1500)/1500;
+  if (v < -0.3) return -12;
+  const xEnv = sstep(3000, 1900, Math.abs(x - 250));
+  let h = 0;
+  if (xEnv > 0){
+    const rise = sstep(-0.05, 1.0, v);
+    const wall = 620*Math.pow(rise, 1.3) * (v > 1 ? Math.max(0, 1 - (v-1)*0.8) : 1);
+    let peaks = 0;
+    for (const [px, ph, pw] of PEAKS){ const t = 1 - Math.abs(x - px)/pw; if (t > 0) peaks += ph*Math.pow(t, 1.5); }
+    peaks *= sstep(0.55, 1.0, v) * sstep(1.45, 1.0, v);
+    const detail = tridged5(x*0.0011 + 3.1, z*0.0011 - 1.7)*260*sstep(0.05, 0.9, v) + (tvn(x*0.012, z*0.004) - 0.5)*40*sstep(0.05, 0.8, v);
+    const g = 1 - Math.abs(2*tfbm4(x*0.007 + 5.1, z*0.0016) - 1);
+    const g2 = 1 - Math.abs(2*tvn(x*0.018 + 2.3, z*0.004) - 1);
+    const gully = (120*g*g*g + 35*g2*g2*g2)*sstep(0.05, 0.75, v)*sstep(1.1, 0.8, v);
+    const cq = (x - 60)/70;
+    const couloir = 110*Math.exp(-cq*cq)*sstep(0.25, 0.95, v);
+    h = (wall + peaks + detail - gully - couloir) * xEnv;
+  }
+  const sq = (x - 1300)/650;
+  if (Math.abs(sq) < 3 && z < -700){
+    const spur = 700*sstep(-750, -2600, z)*Math.exp(-sq*sq)*(0.85 + 0.3*tvn(x*0.004, z*0.004));
+    h = Math.max(h, spur);
+  }
+  const fq = (z + 5200)/1100;
+  if (Math.abs(fq) < 3){
+    const far = (700 + tridged5(x*0.0009 - 7.3, z*0.0009 + 2.2)*650)*Math.exp(-fq*fq);
+    h = Math.max(h, far);
+  }
+  return h - 12*(1 - sstep(-0.3, 0.05, v));
+}
+
+/* =====================================================================
+   Renderer + composer (with an oil-paint Kuwahara pass)
+===================================================================== */
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance', preserveDrawingBuffer: !!RENDER });
+const dpr = RENDER ? 1 : Math.min(window.devicePixelRatio||1, 1.5);
+renderer.setPixelRatio(dpr);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.5, 20000);
+
+const rt = new THREE.WebGLRenderTarget(1,1,{ type:THREE.HalfFloatType, samples:4 });
+const composer = new EffectComposer(renderer, rt);
+composer.setPixelRatio(dpr);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.18, 0.5, 0.92);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+const paintPass = new ShaderPass({
+  uniforms:{ tDiffuse:{value:null}, uRes:{value:new THREE.Vector2(1,1)}, uAmount:{value:1}, uTime:{value:0} },
+  vertexShader:`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader:`
+    uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uAmount; uniform float uTime; varying vec2 vUv;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
+    void main(){
+      vec3 src = texture2D(tDiffuse, vUv).rgb;
+      vec3 outc = src;
+      if (uAmount > 0.01){
+        vec2 px = 1.0/uRes;
+        float sc = max(uRes.y/1080.0, 0.6);
+        vec3 m0=vec3(0.0), m1=vec3(0.0), m2=vec3(0.0), m3=vec3(0.0);
+        vec3 s0=vec3(0.0), s1=vec3(0.0), s2=vec3(0.0), s3=vec3(0.0);
+        for (int j=0;j<=4;j++){
+          for (int i=0;i<=4;i++){
+            vec2 o = vec2(float(i), float(j))*px*sc;
+            vec3 c0 = texture2D(tDiffuse, vUv + vec2(-o.x, -o.y)).rgb; m0 += c0; s0 += c0*c0;
+            vec3 c1 = texture2D(tDiffuse, vUv + vec2( o.x, -o.y)).rgb; m1 += c1; s1 += c1*c1;
+            vec3 c2 = texture2D(tDiffuse, vUv + vec2( o.x,  o.y)).rgb; m2 += c2; s2 += c2*c2;
+            vec3 c3 = texture2D(tDiffuse, vUv + vec2(-o.x,  o.y)).rgb; m3 += c3; s3 += c3*c3;
+          }
+        }
+        m0 /= 25.0; m1 /= 25.0; m2 /= 25.0; m3 /= 25.0;
+        vec3 v0 = abs(s0/25.0 - m0*m0), v1 = abs(s1/25.0 - m1*m1), v2 = abs(s2/25.0 - m2*m2), v3 = abs(s3/25.0 - m3*m3);
+        float a0 = v0.r+v0.g+v0.b, a1 = v1.r+v1.g+v1.b, a2 = v2.r+v2.g+v2.b, a3 = v3.r+v3.g+v3.b;
+        vec3 k = m0; float best = a0;
+        if (a1 < best){ best = a1; k = m1; }
+        if (a2 < best){ best = a2; k = m2; }
+        if (a3 < best){ best = a3; k = m3; }
+        vec2 fc = vUv*uRes/sc;
+        float weave = sin(fc.x*1.7)*sin(fc.y*1.7)*0.012 + (h(floor(fc*0.5)) - 0.5)*0.018;
+        outc = mix(src, k, uAmount) + weave*uAmount;
+        float l = dot(outc, vec3(0.299,0.587,0.114));
+        outc = mix(vec3(l), outc, 1.0 + 0.12*uAmount);
+      }
+      gl_FragColor = vec4(clamp(outc, 0.0, 1.0), 1.0);
+    }`
+});
+composer.addPass(paintPass);
+
+function resize(){
+  const w = RENDER ? RENDER.w : window.innerWidth, h = RENDER ? RENDER.h : window.innerHeight;
+  renderer.setSize(w,h,false);
+  composer.setSize(w,h);
+  paintPass.uniforms.uRes.value.set(w*dpr, h*dpr);
+  camera.aspect = w/h;
+  camera.fov = w/h < 0.8 ? 58 : 45;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+/* =====================================================================
+   Light, sky, clouds, aerial perspective (shared uniforms + GLSL)
+===================================================================== */
+const SUN_DIR = new THREE.Vector3(-0.3, 0.7, -0.62).normalize();
+const SUN_S = new THREE.Vector2(SUN_DIR.x/SUN_DIR.y, SUN_DIR.z/SUN_DIR.y);
+const CLOUD_H = 2500, CLOUD_K = 1/1500;
+const Q_CENTER = new THREE.Vector2(0, -2500).addScaledVector(SUN_S, CLOUD_H);
+const Q_HALF = 6500;
+const WIND_DIR = new THREE.Vector2(0.9, 0.3).normalize();
+const WIND_S = 0.45;
+const HERD_C = new THREE.Vector2(-3, 19);
+const CHILD = new THREE.Vector2(0, 23);
+
+const U = {
+  uTime:{value:0},
+  uSunDir:{value:SUN_DIR},
+  uSunCol:{value:new THREE.Vector3(1.0, 0.95, 0.86).multiplyScalar(2.4)},
+  uSkyAmb:{value:new THREE.Vector3(0.3, 0.42, 0.55)},
+  uGndAmb:{value:new THREE.Vector3(0.12, 0.14, 0.08)},
+  uHaze:{value:new THREE.Vector3(0.44, 0.56, 0.62)},
+  uZenith:{value:new THREE.Vector3(0.15, 0.41, 0.64)},
+  uHorizon:{value:new THREE.Vector3(0.6, 0.74, 0.82)},
+  uCloudOff:{value:new THREE.Vector2(0.3, 0.8)},
+  uCover:{value:0.44},
+  uCloudH:{value:CLOUD_H},
+  uCloudK:{value:CLOUD_K},
+  uShadowAmt:{value:0.7},
+  uCloudTex:{value:null},
+  uQmin:{value:Q_CENTER.clone().addScalar(-Q_HALF)},
+  uQmax:{value:Q_CENTER.clone().addScalar(Q_HALF)},
+  uWindDir:{value:WIND_DIR},
+  uWindS:{value:WIND_S},
+  uGustT:{value:0},
+  uFlutT:{value:0}
+};
+
+const NOISE_GLSL = `
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3,289.1)))*43758.5453); }
+  float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+    return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x), mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x), u.y); }
+  float fbm4(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p=p*2.03+vec2(1.3,7.1); a*=0.5; } return v; }
+  float fbm5(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*vnoise(p); p=p*2.03+vec2(1.3,7.1); a*=0.5; } return v; }
+`;
+const CLOUD_GLSL = `
+  uniform vec3 uSunDir; uniform vec2 uCloudOff; uniform float uCover; uniform float uCloudH; uniform float uCloudK; uniform float uShadowAmt;
+  uniform sampler2D uCloudTex; uniform vec2 uQmin; uniform vec2 uQmax;
+  float cloudShadow(vec3 P){
+    vec2 Q = P.xz + uSunDir.xz/max(uSunDir.y, 0.15)*(uCloudH - P.y);
+    vec2 uv = (Q - uQmin)/(uQmax - uQmin);
+    return 1.0 - uShadowAmt*texture2D(uCloudTex, uv).r;
+  }
+`;
+const CLOUD_DEN_GLSL = `
+  float cloudDen(vec2 p){
+    vec2 w = vec2(fbm4(p*0.7 + 1.7), fbm4(p*0.7 - 3.1));
+    return smoothstep(uCover, uCover + 0.3, fbm5(p + w*1.1));
+  }
+`;
+const DAY_GLSL = `
+  ${NOISE_GLSL}
+  ${CLOUD_GLSL}
+  ${CLOUD_DEN_GLSL}
+  uniform vec3 uSunCol; uniform vec3 uSkyAmb; uniform vec3 uGndAmb; uniform vec3 uHaze; uniform vec3 uZenith; uniform vec3 uHorizon;
+  vec3 skyColor(vec3 d){
+    float h = d.y;
+    vec3 base = mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.5));
+    base = mix(uHorizon*0.85, base, smoothstep(-0.2, 0.0, h));
+    float sd = max(dot(d, uSunDir), 0.0);
+    base += uSunCol*(pow(sd, 900.0)*6.0 + pow(sd, 12.0)*0.06);
+    if (h > 0.004){
+      float t = (uCloudH - cameraPosition.y)/h;
+      vec2 q = (cameraPosition.xz + d.xz*t)*uCloudK + uCloudOff;
+      float den = cloudDen(q);
+      vec2 toSun = normalize(uSunDir.xz + vec2(1e-4));
+      float denS = cloudDen(q + toSun*0.12);
+      float lit = clamp(0.6 + (den - denS)*2.2, 0.0, 1.0);
+      vec3 cShade = vec3(0.46, 0.53, 0.62);
+      vec3 cLit = vec3(1.0, 0.95, 0.88)*1.3 + vec3(0.2, 0.06, 0.0)*lit*lit*lit*lit;
+      vec3 cc = mix(cShade, cLit, lit);
+      base = mix(base, cc, den*smoothstep(0.004, 0.12, h));
+    }
+    return base;
+  }
+  vec3 aerial(vec3 col, vec3 P){
+    vec3 dv = P - cameraPosition;
+    float d = length(dv);
+    float f = 1.0 - exp(-d*0.00007*exp(-max(P.y, 0.0)*0.0005));
+    vec3 hz = uHaze + uSunCol*0.06*pow(max(dot(dv/max(d,1e-3), uSunDir), 0.0), 6.0);
+    return mix(col, hz, clamp(f, 0.0, 0.9));
+  }
+`;
+const WIND_GLSL = `
+  uniform vec2 uWindDir; uniform float uWindS; uniform float uGustT; uniform float uFlutT;
+  float gust(vec2 xz){
+    float ph = dot(xz, uWindDir)*0.18 - uGustT;
+    return 0.5 + 0.5*sin(ph)*(0.65 + 0.35*sin(ph*0.41 + dot(xz, vec2(-uWindDir.y, uWindDir.x))*0.07));
+  }
+`;
+
+// cloud density baked each frame into a world-space texture (cloud shadows everywhere, cheaply)
+const cloudRT = new THREE.WebGLRenderTarget(512, 512, { depthBuffer:false, minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter });
+U.uCloudTex.value = cloudRT.texture;
+const cloudScene = new THREE.Scene();
+const cloudCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+cloudScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms:{ ...U },
+  vertexShader:`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+  fragmentShader:`
+    ${NOISE_GLSL}
+    uniform vec2 uCloudOff; uniform float uCover; uniform float uCloudK; uniform vec2 uQmin; uniform vec2 uQmax;
+    ${CLOUD_DEN_GLSL}
+    varying vec2 vUv;
+    void main(){ float d = cloudDen(mix(uQmin, uQmax, vUv)*uCloudK + uCloudOff); gl_FragColor = vec4(d, d, d, 1.0); }`
+})));
+
+/* sky dome */
+const sky = new THREE.Mesh(new THREE.SphereGeometry(15000, 48, 24), new THREE.ShaderMaterial({
+  side:THREE.BackSide, depthWrite:false, uniforms:{ ...U },
+  vertexShader:`varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader:`${DAY_GLSL} varying vec3 vDir; void main(){ gl_FragColor = vec4(skyColor(normalize(vDir)), 1.0); }`
+}));
+sky.renderOrder = -1;
+scene.add(sky);
+
+/* generic day-lit material for props, goats and the goatherd */
+function dayLit(hex, { spec=0, gloss=32, rim=0, sss=0, side=THREE.FrontSide } = {}){
+  return new THREE.ShaderMaterial({
+    side,
+    uniforms:{ ...U, uAlbedo:{value:new THREE.Color(hex)}, uSpec:{value:spec}, uGloss:{value:gloss}, uRim:{value:rim}, uSss:{value:sss} },
+    vertexShader:`varying vec3 vWorld; varying vec3 vN;
+      void main(){ vec4 w = modelMatrix*vec4(position,1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix)*normal); gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`
+      ${DAY_GLSL}
+      uniform vec3 uAlbedo; uniform float uSpec; uniform float uGloss; uniform float uRim; uniform float uSss;
+      varying vec3 vWorld; varying vec3 vN;
+      void main(){
+        vec3 N = normalize(vN); vec3 V = normalize(cameraPosition - vWorld);
+        if (dot(N,V) < -0.2) N = -N;
+        float sh = cloudShadow(vWorld);
+        float ndl = dot(N, uSunDir);
+        vec3 amb = mix(uGndAmb, uSkyAmb, N.y*0.5 + 0.5);
+        vec3 col = uAlbedo*(amb + uSunCol*max(ndl, 0.0)*sh);
+        if (uSss > 0.0){ float tt = clamp(1.0 - abs(ndl)*1.4, 0.0, 1.0); col += uAlbedo*vec3(0.9,0.3,0.2)*uSunCol*sh*tt*tt*uSss; }
+        if (uSpec > 0.0){ vec3 H = normalize(uSunDir + V + vec3(0.0,1e-4,0.0)); col += uSunCol*sh*uSpec*pow(max(dot(N,H),0.0), uGloss)*step(0.0, ndl); }
+        if (uRim > 0.0){ float fr = pow(1.0 - max(dot(N,V),0.0), 3.0); col += uRim*fr*uSkyAmb*0.45; }
+        gl_FragColor = vec4(aerial(clamp(col, 0.0, 64.0), vWorld), 1.0);
+      }`
+  });
+}
+
+/* =====================================================================
+   Foreground knoll (dense near the camera)
+===================================================================== */
+{
+  const S = 350, N = 360;
+  const g = new THREE.PlaneGeometry(2, 2, N, N);
+  g.rotateX(-Math.PI/2);
+  const p = g.attributes.position;
+  const remap = u => S*(0.04*u + 0.96*u*Math.abs(u));
+  for (let i=0;i<p.count;i++){ const x = remap(p.getX(i)), z = remap(p.getZ(i)); p.setXYZ(i, x, fgH(x,z), z); }
+  g.computeVertexNormals();
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{ ...U, uGrassC:{value:new THREE.Vector2()} },
+    vertexShader:`varying vec3 vWorld; varying vec3 vN; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix)*normal); gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`
+      ${DAY_GLSL}
+      uniform vec2 uGrassC;
+      varying vec3 vWorld; varying vec3 vN;
+      void main(){
+        vec3 N = normalize(vN), P = vWorld;
+        float n1 = vnoise(P.xz*0.08), n2 = vnoise(P.xz*0.015 + 4.0), n3 = vnoise(P.xz*0.4);
+        vec3 alb = mix(vec3(0.07,0.14,0.035), vec3(0.15,0.17,0.055), smoothstep(0.3, 0.8, n2)) * (0.75 + 0.5*n1);
+        alb = mix(alb, vec3(0.22,0.11,0.04), smoothstep(0.72, 0.85, n1*0.6 + n2*0.4)*0.8);
+        alb = mix(alb, vec3(0.2,0.2,0.18)*(0.8 + 0.4*n3), smoothstep(0.8, 0.92, vnoise(P.xz*0.05 + 9.0)));
+        alb = mix(alb, vec3(0.05,0.035,0.022), smoothstep(20.0, 60.0, P.x)*0.8);
+        alb = mix(alb, vec3(0.04,0.035,0.025), 1.0 - smoothstep(0.2, 1.2, P.y));
+        alb *= mix(0.6, 1.0, smoothstep(10.0, 30.0, length(P.xz - uGrassC)));
+        float sh = cloudShadow(P);
+        vec3 col = alb*(mix(uGndAmb, uSkyAmb, N.y*0.5 + 0.5) + uSunCol*max(dot(N, uSunDir), 0.0)*sh);
+        gl_FragColor = vec4(aerial(col, P), 1.0);
+      }`
+  });
+  var fgMat = mat;
+  scene.add(new THREE.Mesh(g, mat));
+}
+
+/* =====================================================================
+   The massif: Dents du Midi wall, right spur and the far range
+===================================================================== */
+{
+  const W0 = -6500, W1 = 6500, Z0 = -7500, Z1 = -900, NX = 760, NZ = 360;
+  const g = new THREE.PlaneGeometry(W1 - W0, Z1 - Z0, NX, NZ);
+  g.rotateX(-Math.PI/2);
+  g.translate((W0 + W1)/2, 0, (Z0 + Z1)/2);
+  const p = g.attributes.position;
+  for (let i=0;i<p.count;i++) p.setY(i, massifH(p.getX(i), p.getZ(i)));
+  g.computeVertexNormals();
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{ ...U },
+    vertexShader:`varying vec3 vWorld; varying vec3 vN; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix)*normal); gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`
+      ${DAY_GLSL}
+      varying vec3 vWorld; varying vec3 vN;
+      void main(){
+        vec3 N = normalize(vN), P = vWorld;
+        float slope = N.y;
+        float n1 = vnoise(P.xz*0.004), streak = vnoise(vec2(P.x*0.03, P.y*0.006)), n3 = vnoise(P.xz*0.02);
+        vec3 rock = mix(vec3(0.028,0.042,0.04), vec3(0.075,0.09,0.084), streak*streak) * (0.75 + 0.5*n3);
+        float forest = (1.0 - smoothstep(250.0, 480.0, P.y + (n1 - 0.5)*240.0)) * smoothstep(0.45, 0.7, slope);
+        vec3 alb = mix(rock, vec3(0.018,0.04,0.026)*(0.8 + 0.4*n3), forest);
+        float cq = (P.x - 60.0)/80.0;
+        float couloir = exp(-cq*cq) * step(P.z, -1800.0);
+        float snowLine = 700.0 + (n1 - 0.5)*220.0 - 360.0*couloir;
+        float snow = smoothstep(snowLine, snowLine + 90.0, P.y) * smoothstep(0.3, 0.58, slope + 0.25*streak + 0.35*couloir);
+        alb = mix(alb, vec3(0.72,0.76,0.8), snow);
+        alb = mix(alb, vec3(0.03,0.028,0.022), 1.0 - smoothstep(0.0, 25.0, P.y));
+        float sh = cloudShadow(P);
+        vec3 col = alb*(mix(uGndAmb, uSkyAmb, slope*0.5 + 0.5)*0.8 + uSunCol*max(dot(N, uSunDir), 0.0)*sh);
+        gl_FragColor = vec4(aerial(col, P), 1.0);
+      }`
+  });
+  scene.add(new THREE.Mesh(g, mat));
+}
+
+/* =====================================================================
+   Lake: reflects the massif skyline (precomputed) and the cloudy sky
+===================================================================== */
+{
+  const W = 512, data = new Uint8Array(W);
+  const E = new THREE.Vector3(0, 2, -150);
+  for (let i=0;i<W;i++){
+    const az = (i/W - 0.5)*Math.PI*2, dx = Math.sin(az), dz = -Math.cos(az);
+    let best = 0;
+    for (let t=300; t<9000; t += (t < 3500 ? 45 : 90)){
+      const x = E.x + dx*t, z = E.z + dz*t;
+      const hh = massifH(x, z);
+      if (hh > 0) best = Math.max(best, Math.atan2(hh - E.y, t));
+    }
+    data[i] = Math.round(Math.min(best/0.5, 1)*255);
+  }
+  const skyline = new THREE.DataTexture(data, W, 1, THREE.RedFormat, THREE.UnsignedByteType);
+  skyline.wrapS = THREE.RepeatWrapping; skyline.minFilter = THREE.LinearFilter; skyline.magFilter = THREE.LinearFilter;
+  skyline.needsUpdate = true;
+  const g = new THREE.PlaneGeometry(20000, 20000, 1, 1);
+  g.rotateX(-Math.PI/2);
+  g.translate(0, 0, -3000);
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{ ...U, uSkyline:{value:skyline} },
+    vertexShader:`varying vec3 vWorld; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vWorld = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`
+      ${DAY_GLSL}
+      ${WIND_GLSL}
+      uniform sampler2D uSkyline;
+      varying vec3 vWorld;
+      void main(){
+        vec3 V = normalize(cameraPosition - vWorld);
+        float dist = length(cameraPosition - vWorld);
+        vec2 x = vWorld.xz;
+        vec2 d1 = uWindDir, d2 = normalize(uWindDir*0.8 + vec2(-uWindDir.y, uWindDir.x)*0.6), d3 = normalize(uWindDir*0.5 - vec2(-uWindDir.y, uWindDir.x)*0.85);
+        float p1 = dot(x,d1)*0.9 - uGustT*1.3, p2 = dot(x,d2)*1.7 - uGustT*1.9, p3 = dot(x,d3)*3.1 - uGustT*2.6;
+        vec2 grad = d1*cos(p1)*0.45 + d2*cos(p2)*0.42 + d3*cos(p3)*0.37;
+        float amp = (0.02 + 0.05*uWindS) / (1.0 + dist*0.01);
+        vec3 N = normalize(vec3(-grad.x*amp, 1.0, -grad.y*amp));
+        vec3 Rf = reflect(-V, N);
+        Rf.y = max(Rf.y, 0.001);
+        float az = atan(Rf.x, -Rf.z);
+        float el = asin(clamp(Rf.y, 0.0, 1.0));
+        float skyEl = texture2D(uSkyline, vec2(az/6.2831853 + 0.5, 0.5)).r * 0.5;
+        vec3 refl;
+        if (el < skyEl){
+          float top = smoothstep(skyEl - 0.035, skyEl, el);
+          refl = mix(vec3(0.018,0.036,0.036), vec3(0.3,0.34,0.38), top*0.55);
+          refl = mix(refl, uHaze, 0.1);
+        } else {
+          refl = skyColor(Rf);
+        }
+        float fres = 0.02 + 0.98*pow(1.0 - max(dot(N,V), 0.0), 5.0);
+        vec3 col = mix(vec3(0.01,0.028,0.028), refl, clamp(fres*1.1 + 0.2, 0.0, 1.0));
+        vec3 H = normalize(uSunDir + V);
+        col += uSunCol*pow(max(dot(N,H), 0.0), 400.0)*3.0*cloudShadow(vWorld);
+        gl_FragColor = vec4(aerial(clamp(col, 0.0, 64.0), vWorld), 1.0);
+      }`
+  });
+  scene.add(new THREE.Mesh(g, mat));
+}
+
+/* =====================================================================
+   Boulders (lichen, moss on top), merged into one mesh
+===================================================================== */
+{
+  const bases = [0,1,2].map(seed => {
+    const g = new THREE.IcosahedronGeometry(1, 3);
+    const p = g.attributes.position, d = new THREE.Vector3();
+    for (let i=0;i<p.count;i++){
+      d.fromBufferAttribute(p, i).normalize();
+      const r = 1 + 0.35*(tfbm4(d.x*1.8 + seed*7.1, d.z*1.8 + d.y*1.3 - seed*3.3) - 0.5) + 0.08*(tvn(d.x*6 + seed, d.y*6 - d.z*3) - 0.5);
+      p.setXYZ(i, d.x*r, d.y*r*0.72, d.z*r);
+    }
+    g.computeVertexNormals();
+    return g;
+  });
+  const parts = [];
+  const place = (x, z, s) => {
+    const g = bases[Math.floor(rnd()*3)].clone();
+    g.scale(s*R(0.8,1.3), s, s*R(0.8,1.3));
+    g.rotateY(R(0, Math.PI*2));
+    g.translate(x, fgH(x,z) - 0.3*s, z);
+    parts.push(g);
+  };
+  let n = 0, tries = 0;
+  while (n < 110 && tries < 4000){
+    tries++;
+    const x = R(-90, 45), z = R(-100, 40);
+    if (fgH(x,z) < 0.8) continue;
+    if (tvn(x*0.05 + 3.0, z*0.05 - 2.0) < 0.52) continue;
+    if (Math.hypot(x - HERD_C.x, z - HERD_C.y) < 10) continue;
+    const s = rnd() < 0.08 ? R(1.4, 2.6) : R(0.25, 1.0);
+    place(x, z, s); n++;
+  }
+  place(-62, 12, 3.2); place(-55, 18, 2.2); place(-30, -48, 2.4);
+  const geo = mergeGeometries(parts);
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{ ...U },
+    vertexShader:`varying vec3 vWorld; varying vec3 vN; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix)*normal); gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`
+      ${DAY_GLSL}
+      varying vec3 vWorld; varying vec3 vN;
+      void main(){
+        vec3 N = normalize(vN), P = vWorld;
+        float n1 = vnoise(P.xz*2.5 + P.y*1.7), n2 = vnoise(P.xz*0.7 - P.y);
+        vec3 alb = vec3(0.23,0.23,0.21)*(0.75 + 0.5*n2);
+        alb = mix(alb, vec3(0.28,0.26,0.12), smoothstep(0.62, 0.8, n1)*0.7);
+        alb = mix(alb, vec3(0.06,0.1,0.035), smoothstep(0.55, 0.85, N.y)*smoothstep(0.4, 0.7, n2)*0.8);
+        float sh = cloudShadow(P);
+        vec3 col = alb*(mix(uGndAmb, uSkyAmb, N.y*0.5 + 0.5)*(0.6 + 0.4*n2) + uSunCol*max(dot(N, uSunDir), 0.0)*sh);
+        gl_FragColor = vec4(aerial(col, P), 1.0);
+      }`
+  });
+  scene.add(new THREE.Mesh(geo, mat));
+}
+
+/* =====================================================================
+   Meadow grass: three camera-following layers, clumps, wildflowers
+===================================================================== */
+const OBJ_N = 8;
+const objUniform = { value: new Array(OBJ_N).fill(0).map(() => new THREE.Vector3(9999, 9999, 0.1)) };
+function bladeGeometry(segs){
+  const pos=[], idx=[];
+  for (let i=0;i<=segs;i++){ const t=i/segs; pos.push(-0.5,t,0, 0.5,t,0); }
+  for (let i=0;i<segs;i++){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx);
+  return g;
+}
+const wrapT = (v, T) => ((v % T) + T) % T;
+function grassLayer({ count, tile, fadeR, scaleH, scaleW, inner, segs, ahead }){
+  const off = new Float32Array(count*2), par = new Float32Array(count*4), par2 = new Float32Array(count*4);
+  let i = 0;
+  while (i < count){
+    const cx = R(0,tile), cz = R(0,tile);
+    const clumpH = R(0.75, 1.3), clumpDry = rnd()*rnd(), n = 6 + Math.floor(rnd()*14), rad = R(0.08, 0.25);
+    for (let k=0; k<n && i<count; k++, i++){
+      const a = R(0, Math.PI*2), r = rad*Math.sqrt(rnd());
+      off[i*2] = wrapT(cx + Math.cos(a)*r, tile);
+      off[i*2+1] = wrapT(cz + Math.sin(a)*r, tile);
+      const flower = rnd() < 0.05 ? 1 : 0;
+      par[i*4] = R(0, Math.PI*2);
+      par[i*4+1] = R(0.13, 0.3)*clumpH*(flower ? 1.35 : 1);
+      par[i*4+2] = flower ? R(0.028, 0.036) : R(0.035, 0.065);
+      par[i*4+3] = rnd();
+      par2[i*4] = Math.min(1, Math.max(0, clumpDry + R(-0.1, 0.1)));
+      par2[i*4+1] = a;
+      par2[i*4+2] = R(0.1, 0.4)*(r/rad);
+      par2[i*4+3] = flower;
+    }
+  }
+  const blade = bladeGeometry(segs);
+  const g = new THREE.InstancedBufferGeometry();
+  g.index = blade.index;
+  g.setAttribute('position', blade.getAttribute('position'));
+  g.setAttribute('aOffset', new THREE.InstancedBufferAttribute(off,2));
+  g.setAttribute('aParams', new THREE.InstancedBufferAttribute(par,4));
+  g.setAttribute('aParams2', new THREE.InstancedBufferAttribute(par2,4));
+  g.instanceCount = count;
+  const mat = new THREE.ShaderMaterial({
+    side:THREE.DoubleSide,
+    uniforms:{ ...U, uCenter:{value:new THREE.Vector2()}, uTile:{value:tile}, uFadeR:{value:fadeR},
+      uScaleH:{value:scaleH}, uScaleW:{value:scaleW}, uInner:{value:inner}, uObj:objUniform },
+    vertexShader:`
+      attribute vec2 aOffset; attribute vec4 aParams; attribute vec4 aParams2;
+      ${TERRAIN_GLSL}
+      ${WIND_GLSL}
+      ${CLOUD_GLSL}
+      uniform vec2 uCenter; uniform float uTile; uniform float uFadeR; uniform float uScaleH; uniform float uScaleW; uniform float uInner;
+      uniform vec3 uObj[${OBJ_N}];
+      varying vec3 vWorld; varying vec3 vN; varying float vT; varying float vVar; varying float vDry; varying float vFlower; varying float vShadow; varying float vAO;
+      void main(){
+        vec2 wp = uCenter - 0.5*uTile + mod(aOffset - uCenter + 0.5*uTile, uTile);
+        float fade = 1.0 - smoothstep(uFadeR*0.7, uFadeR, length(wp - uCenter));
+        fade *= smoothstep(uInner*0.8, uInner*1.3 + 0.001, length(wp - cameraPosition.xz));
+        float gy = fgH(wp);
+        float mask = smoothstep(0.3, 0.8, gy) * (1.0 - 0.7*smoothstep(25.0, 60.0, wp.x));
+        float flower = aParams2.w;
+        float h = aParams.y * uScaleH * fade * mask;
+        vVar = fract(aParams.w*13.17);
+        vDry = aParams2.x;
+        vFlower = flower;
+        if (h < 0.004){ vWorld = vec3(0.0); vN = vec3(0.0,1.0,0.0); vT = 0.0; vShadow = 1.0; vAO = 1.0; gl_Position = vec4(0.0,0.0,-2.0,1.0); return; }
+
+        float t = position.y;
+        float q = (t - 0.84)/0.075;
+        float wprof = flower > 0.5 ? (0.2 + 1.4*exp(-q*q)) : pow(max(1.0 - t, 0.0), 0.75);
+        vec3 lp = vec3(position.x * wprof * aParams.z * uScaleW, t*h, 0.0);
+        float yaw = aParams.x + (aParams.w - 0.5)*1.2*t;
+        float c = cos(yaw), s = sin(yaw);
+        vec3 rp = vec3(lp.x*c, lp.y, -lp.x*s);
+        vec2 leanDir = vec2(cos(aParams2.y), sin(aParams2.y));
+        float lean = aParams2.z * (flower > 0.5 ? 0.3 : 1.0);
+        rp.xz += leanDir * lean * t*t*h;
+        float g = gust(wp);
+        float f = min(0.1 + uWindS*(0.28 + 0.5*g), 0.9);
+        vec2 side = vec2(-uWindDir.y, uWindDir.x);
+        float flick = sin(uFlutT*0.5 + wp.x*1.7 - wp.y*0.9 + aParams.w*6.0) * 0.06 * (0.3 + uWindS);
+        rp.xz += (uWindDir*f + side*flick) * t*t*h;
+        rp.y *= 1.0 - 0.45*f*f*t - 0.35*lean*lean*t;
+        float ao = 1.0;
+        for (int k=0;k<${OBJ_N};k++){
+          vec2 toO = wp - uObj[k].xy;
+          float dO = length(toO);
+          float push = 1.0 - smoothstep(uObj[k].z*0.4, uObj[k].z*1.3, dO);
+          rp.xz += (toO/max(dO, 1e-3)) * push * t * h * 0.8;
+          rp.y *= 1.0 - 0.45*push*t;
+          ao *= mix(0.55, 1.0, smoothstep(uObj[k].z*0.3, uObj[k].z*1.8, dO));
+        }
+        vec3 world = vec3(wp.x, gy - 0.02, wp.y) + rp;
+        vec3 nB = vec3(s, 0.0, c), sideV = vec3(c, 0.0, -s);
+        vWorld = world;
+        vN = normalize(nB + sideV*position.x*1.6 + vec3(0.0, 0.3, 0.0));
+        vT = t;
+        vShadow = cloudShadow(world);
+        vAO = ao;
+        gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+      }`,
+    fragmentShader:`
+      ${DAY_GLSL}
+      varying vec3 vWorld; varying vec3 vN; varying float vT; varying float vVar; varying float vDry; varying float vFlower; varying float vShadow; varying float vAO;
+      void main(){
+        vec3 V = normalize(cameraPosition - vWorld);
+        vec3 N = normalize(vN);
+        if (dot(N,V) < 0.0) N = -N;
+        float ndl = dot(N, uSunDir);
+        float wrap = 0.35 + 0.65*abs(ndl);
+        float trans = pow(max(dot(-V, uSunDir), 0.0), 3.0)*0.7;
+        vec3 tipG = mix(vec3(0.1,0.19,0.04), vec3(0.19,0.25,0.07), vVar);
+        vec3 tipD = mix(vec3(0.3,0.26,0.1), vec3(0.42,0.36,0.16), vVar);
+        vec3 alb = mix(vec3(0.018,0.03,0.01), mix(tipG, tipD, vDry), smoothstep(0.0, 0.9, vT));
+        float ao = mix(0.2, 1.0, pow(clamp(vT, 0.0, 1.0), 0.8)) * vAO;
+        if (vFlower > 0.5 && vT > 0.72){
+          alb = vVar < 0.4 ? vec3(0.8,0.8,0.74) : (vVar < 0.72 ? vec3(0.85,0.6,0.07) : vec3(0.36,0.2,0.62));
+          ao = vAO;
+        }
+        vec3 col = alb*mix(uGndAmb, uSkyAmb, 0.7)*ao + alb*uSunCol*vShadow*(wrap*0.8 + trans)*ao;
+        gl_FragColor = vec4(aerial(clamp(col, 0.0, 64.0), vWorld), 1.0);
+      }`
+  });
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return { mat, geo:g, count, ahead, fadeR };
+}
+const grassClose = grassLayer({ count:150000, tile:24,  fadeR:12,  scaleH:1.0, scaleW:1.0, inner:0,  segs:5, ahead:6 });
+const grassMid   = grassLayer({ count:240000, tile:70,  fadeR:35,  scaleH:1.0, scaleW:1.1, inner:6,  segs:4, ahead:28 });
+const grassFar   = grassLayer({ count:100000, tile:220, fadeR:110, scaleH:1.2, scaleW:2.6, inner:26, segs:3, ahead:80 });
+const GRASS_LAYERS = [grassClose, grassMid, grassFar];
+
+/* =====================================================================
+   Goats, the goatherd, circling birds
+===================================================================== */
+const Yax = new THREE.Vector3(0,1,0);
+const SPH = new THREE.SphereGeometry(1, 18, 12);
+function part(parent, geo, mat, x,y,z, sx=1,sy=1,sz=1){ const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.scale.set(sx,sy,sz); parent.add(m); return m; }
+function limb(parent, a, b, r, mat){
+  const d = b.clone().sub(a), len = d.length();
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(len - 2*r, 0.001), 4, 10), mat);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(Yax, d.normalize());
+  parent.add(m);
+  return m;
+}
+const MAT = {
+  hoof: dayLit(0x1a1714), nose: dayLit(0x141110, { spec:0.3, gloss:40 }), eye: dayLit(0x2a1a08, { spec:0.9, gloss:140 }),
+  horn: dayLit(0x6b5a44, { spec:0.2, gloss:30 })
+};
+function buildGoat(furHex){
+  const fur = dayLit(furHex, { rim:0.5 });
+  const root = new THREE.Group();
+  const body = new THREE.Group(); body.position.y = 0.62; root.add(body);
+  part(body, SPH, fur, 0, 0, 0, 0.17, 0.2, 0.4);
+  part(body, SPH, fur, 0, 0.02, 0.26, 0.15, 0.19, 0.2);
+  part(body, SPH, fur, 0, 0.03, -0.28, 0.16, 0.19, 0.19);
+  const neck = new THREE.Group(); neck.position.set(0, 0.06, 0.34); body.add(neck);
+  part(neck, new THREE.CapsuleGeometry(0.07, 0.18, 4, 10), fur, 0, 0.13, 0);
+  const head = new THREE.Group(); head.position.set(0, 0.27, 0); neck.add(head);
+  part(head, SPH, fur, 0, 0, 0.05, 0.07, 0.08, 0.13);
+  part(head, SPH, fur, 0, -0.03, 0.15, 0.045, 0.05, 0.07);
+  part(head, SPH, MAT.nose, 0, -0.035, 0.205, 0.022, 0.018, 0.012);
+  const beard = part(head, new THREE.ConeGeometry(0.018, 0.07, 6), fur, 0, -0.085, 0.1);
+  beard.rotation.x = Math.PI;
+  const ears = [];
+  for (const sd of [1,-1]){
+    part(head, SPH, MAT.eye, sd*0.055, 0.02, 0.08, 0.012, 0.012, 0.012);
+    const ep = new THREE.Group(); ep.position.set(sd*0.06, 0.03, 0.0); head.add(ep);
+    part(ep, SPH, fur, sd*0.04, 0, 0, 0.05, 0.015, 0.025);
+    ep.rotation.z = -sd*0.35; ears.push(ep);
+    const curve = new THREE.CatmullRomCurve3([[0.03,0.07,0.02],[0.04,0.14,-0.03],[0.05,0.17,-0.1],[0.06,0.15,-0.17]].map(([x,y,z]) => new THREE.Vector3(sd*x, y, z)));
+    head.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.012, 6, false), MAT.horn));
+  }
+  const legs = [];
+  for (const [x, z, front, off] of [[0.09,0.27,1,0.25],[-0.09,0.27,1,0.75],[0.09,-0.28,0,0.0],[-0.09,-0.28,0,0.5]]){
+    const hip = new THREE.Group(); hip.position.set(x, -0.1, z); body.add(hip);
+    part(hip, new THREE.CapsuleGeometry(0.042, 0.17, 4, 8), fur, 0, -0.12, 0);
+    const knee = new THREE.Group(); knee.position.y = -0.26; hip.add(knee);
+    part(knee, new THREE.CapsuleGeometry(0.025, 0.18, 4, 8), fur, 0, -0.11, 0);
+    part(knee, new THREE.CylinderGeometry(0.024, 0.03, 0.04, 8), MAT.hoof, 0, -0.235, 0);
+    legs.push({ hip, knee, front, off });
+  }
+  const tail = new THREE.Group(); tail.position.set(0, 0.12, -0.44); body.add(tail);
+  const tc = part(tail, new THREE.ConeGeometry(0.025, 0.1, 6), fur, 0, 0.04, 0);
+  tail.rotation.x = -0.5;
+  return { root, body, neck, head, legs, tail, ears, st:null };
+}
+const goats = [0x15120f, 0x3a2416, 0x1c1814, 0xb9b1a3, 0x5a3a22, 0x100e0c].map((c, i) => {
+  const G = buildGoat(c);
+  const a = i/6*Math.PI*2 + R(-0.3, 0.3), r = R(3, 8);
+  G.st = { mode:'graze', t:R(1, 6), pos:new THREE.Vector2(HERD_C.x + Math.cos(a)*r, HERD_C.y + Math.sin(a)*r), heading:R(0, Math.PI*2),
+           target:new THREE.Vector2(), phase:rnd(), walkW:0, neck:2.2, headAbs:1.45, yaw:0, lookYaw:0, tailT:R(0,4), earT:R(0,3), tilt:0, seed:rnd()*10 };
+  scene.add(G.root);
+  return G;
+});
+function updateGoat(G, dt, t){
+  const s = G.st;
+  s.t -= dt;
+  if (s.t <= 0){
+    const r = rnd();
+    if (r < 0.5){ s.mode = 'graze'; s.t = R(4, 10); }
+    else if (r < 0.75){ s.mode = 'look'; s.t = R(2, 5); s.lookYaw = R(-0.8, 0.8); }
+    else {
+      for (let k=0;k<6;k++){
+        const a = R(0, Math.PI*2), rr = R(0, 9);
+        s.target.set(HERD_C.x + Math.cos(a)*rr, HERD_C.y + Math.sin(a)*rr);
+        if (fgH(s.target.x, s.target.y) > 1.0 && s.target.distanceTo(CHILD) > 1.8) break;
+      }
+      s.mode = 'walk'; s.t = 12;
+    }
+  }
+  let speed = 0;
+  if (s.mode === 'walk'){
+    const dx = s.target.x - s.pos.x, dz = s.target.y - s.pos.y, dist = Math.hypot(dx, dz);
+    if (dist < 0.3){ s.mode = 'graze'; s.t = R(4, 9); }
+    else {
+      let dh = Math.atan2(dx, dz) - s.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      s.heading += dh*Math.min(dt*2.0, 1);
+      if (Math.abs(dh) < 0.6){ speed = 0.45; s.pos.x += Math.sin(s.heading)*speed*dt; s.pos.y += Math.cos(s.heading)*speed*dt; }
+    }
+  }
+  s.walkW += ((speed > 0 ? 1 : 0) - s.walkW)*Math.min(dt*4, 1);
+  s.phase += speed/0.9*dt;
+  const [nT, hT] = s.mode === 'graze' ? [2.2, 1.45] : (s.mode === 'look' ? [0.3, -0.05] : [0.75, 0.35]);
+  const k = Math.min(dt*2.0, 1);
+  s.neck += (nT - s.neck)*k; s.headAbs += (hT - s.headAbs)*k;
+  s.yaw += ((s.mode === 'look' ? s.lookYaw : 0) - s.yaw)*Math.min(dt*1.5, 1);
+  s.tilt += ((s.mode === 'graze' ? 0.1 : 0) - s.tilt)*k;
+  const gy = fgH(s.pos.x, s.pos.y);
+  G.root.position.set(s.pos.x, gy, s.pos.y);
+  G.root.rotation.y = s.heading;
+  G.body.position.y = 0.62 + s.walkW*0.012*Math.sin(s.phase*Math.PI*4);
+  G.body.rotation.x = s.tilt;
+  G.neck.rotation.set(s.neck, s.yaw*0.5, 0);
+  const chew = s.mode === 'graze' ? Math.sin(t*9 + s.seed)*0.04 : 0;
+  G.head.rotation.set(s.headAbs - s.neck - s.tilt + chew, s.yaw*0.5, 0);
+  for (const L of G.legs){
+    const ph = (s.phase + L.off)*Math.PI*2;
+    const swing = Math.sin(ph)*0.42*s.walkW;
+    L.hip.rotation.x = -swing - (L.front ? -s.tilt : 0);
+    const bend = Math.max(0, Math.sin(ph + 1.0))*0.55*s.walkW;
+    L.knee.rotation.x = L.front ? bend : -bend*0.8;
+  }
+  s.tailT -= dt;
+  if (s.tailT < 0) s.tailT = R(2, 6);
+  G.tail.rotation.z = s.tailT < 0.5 ? Math.sin(s.tailT*40)*0.5 : 0;
+  s.earT -= dt;
+  if (s.earT < 0) s.earT = R(1.5, 5);
+  const tw = s.earT < 0.25 ? Math.sin(s.earT*50)*0.25 : 0;
+  G.ears[0].rotation.x = tw; G.ears[1].rotation.x = -tw*0.5;
+}
+
+// the goatherd: a child reclining on one elbow in a straw hat and red jacket
+const child = (() => {
+  const red = dayLit(0x8f2e1c, { rim:0.5 }), cloth = dayLit(0x3b2a20, { rim:0.4 }), skin = dayLit(0xb07c5e, { sss:0.35, spec:0.05, gloss:24 });
+  const straw = dayLit(0xc9a55a, { rim:0.4 }), hair = dayLit(0x4a2f1c), band = dayLit(0x2a1c14);
+  const g = new THREE.Group();
+  const V = (x,y,z) => new THREE.Vector3(x,y,z);
+  const torso = new THREE.Group(); g.add(torso);
+  limb(torso, V(0, 0.14, 0), V(0, 0.36, -0.2), 0.105, red);
+  const head = new THREE.Group(); head.position.set(0, 0.47, -0.25); g.add(head);
+  part(head, SPH, skin, 0, 0, 0, 0.075, 0.088, 0.08);
+  part(head, SPH, hair, 0, 0.02, -0.02, 0.078, 0.07, 0.074);
+  const hat = new THREE.Group(); hat.position.set(0, 0.06, -0.01); hat.rotation.x = -0.25; head.add(hat);
+  part(hat, new THREE.CylinderGeometry(0.19, 0.2, 0.012, 28), straw, 0, 0, 0);
+  part(hat, new THREE.CylinderGeometry(0.08, 0.095, 0.075, 20), straw, 0, 0.04, 0);
+  part(hat, new THREE.CylinderGeometry(0.096, 0.096, 0.018, 20), band, 0, 0.012, 0);
+  limb(g, V(-0.14, 0.33, -0.2), V(-0.2, 0.15, -0.36), 0.045, red);
+  limb(g, V(-0.2, 0.15, -0.36), V(-0.2, 0.03, -0.28), 0.035, skin);
+  limb(g, V(0.14, 0.33, -0.18), V(0.17, 0.2, 0.02), 0.045, red);
+  limb(g, V(0.17, 0.2, 0.02), V(0.12, 0.24, 0.2), 0.035, skin);
+  limb(g, V(0.07, 0.12, 0.02), V(0.08, 0.3, 0.26), 0.06, cloth);
+  limb(g, V(0.08, 0.3, 0.26), V(0.08, 0.05, 0.46), 0.04, skin);
+  limb(g, V(-0.07, 0.1, 0.02), V(-0.08, 0.09, 0.36), 0.06, cloth);
+  limb(g, V(-0.08, 0.09, 0.36), V(-0.08, 0.06, 0.68), 0.04, skin);
+  part(g, SPH, skin, 0.08, 0.04, 0.52, 0.035, 0.03, 0.065);
+  part(g, SPH, skin, -0.08, 0.05, 0.74, 0.035, 0.03, 0.065);
+  const x = CHILD.x, z = CHILD.y;
+  g.position.set(x, fgH(x, z) - 0.02, z);
+  g.rotation.y = Math.PI*0.5;
+  scene.add(g);
+  return { g, head, torso, yaw:0 };
+})();
+
+// two birds of prey circling over the shore
+const birds = [0, 1].map(i => {
+  const mat = dayLit(0x2a221c);
+  const g = new THREE.Group();
+  part(g, SPH, mat, 0, 0, 0, 0.12, 0.1, 0.35);
+  const wings = [];
+  for (const sd of [1,-1]){
+    const w = new THREE.Group(); g.add(w);
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0.18, sd*0.9,0.02,-0.05, 0,0,-0.12, sd*0.9,0.02,-0.05, sd*0.65,0,0.05, 0,0,0.18], 3));
+    wg.computeVertexNormals();
+    const wm = new THREE.Mesh(wg, dayLit(0x2a221c, { side:THREE.DoubleSide }));
+    w.add(wm); wings.push({ w, sd });
+  }
+  g.scale.setScalar(1.6);
+  scene.add(g);
+  return { g, wings, r:R(45, 70), h:R(55, 80), c:new THREE.Vector2(R(20, 60), R(-190, -130)), sp:R(0.12, 0.17)*(i ? -1 : 1), ph:R(0, 6) };
+});
+
+// soft contact shadows under the herd and the goatherd
+const blobMat = new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2,
+  vertexShader:`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader:`varying vec2 vUv; void main(){ float r = length(vUv - 0.5)*2.0; gl_FragColor = vec4(0.0, 0.0, 0.0, 0.42*(1.0 - smoothstep(0.25, 1.0, r))); }`
+});
+const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI/2);
+const goatBlobs = goats.map(() => { const m = new THREE.Mesh(blobGeo, blobMat); m.scale.set(0.5, 1, 1.0); scene.add(m); return m; });
+{
+  const m = new THREE.Mesh(blobGeo, blobMat);
+  m.scale.set(0.9, 1, 1.2);
+  m.position.set(CHILD.x + 0.3, fgH(CHILD.x + 0.3, CHILD.y) + 0.05, CHILD.y);
+  scene.add(m);
+}
+
+/* =====================================================================
+   Camera, controls, UI
+===================================================================== */
+const HOME = { pos:new THREE.Vector3(6, 11, 44), target:new THREE.Vector3(-2, 16, -40) };
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.5;
+controls.zoomSpeed = 0.8;
+controls.enablePan = true;
+controls.panSpeed = 0.6;
+controls.screenSpacePanning = false;
+controls.minDistance = 8;
+controls.maxDistance = 260;
+controls.minPolarAngle = Math.PI*0.25;
+controls.maxPolarAngle = Math.PI*0.56;
+camera.position.copy(HOME.pos);
+controls.target.copy(HOME.target);
+resize();
+controls.update();
+let tween = null;
+const ease = t => t<0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+document.getElementById('resetView').addEventListener('click', () => {
+  tween = { start:performance.now(), p0:camera.position.clone(), t0:controls.target.clone() };
+});
+controls.addEventListener('start', () => { tween = null; });
+function clampCamera(){
+  const t = controls.target;
+  t.x = Math.min(Math.max(t.x, -120), 120); t.z = Math.min(Math.max(t.z, -400), 60);
+  const off = camera.position.clone().sub(t);
+  const az = Math.atan2(off.x, off.z);
+  if (Math.abs(az) > 1.05){ const a = Math.sign(az)*1.05, r = Math.hypot(off.x, off.z); camera.position.x = t.x + Math.sin(a)*r; camera.position.z = t.z + Math.cos(a)*r; }
+  const cx = camera.position.x, cz = camera.position.z;
+  const inside = Math.abs(cx) < 330 && Math.abs(cz) < 330;
+  const minY = Math.max(inside ? fgH(cx, cz) : 0, 0) + 1.2;
+  if (camera.position.y < minY) camera.position.y = minY;
+  camera.lookAt(t);
+}
+
+let paintTarget = 1;
+const styleBtns = [...document.querySelectorAll('[data-style]')];
+function setStyle(style){
+  paintTarget = style === 'painted' ? 1 : 0;
+  for (const b of styleBtns) b.setAttribute('aria-pressed', String(b.dataset.style === style));
+  try { localStorage.setItem('dents-style', style); } catch(e){}
+}
+for (const b of styleBtns) b.addEventListener('click', () => setStyle(b.dataset.style));
+{
+  let saved = null;
+  try { saved = localStorage.getItem('dents-style'); } catch(e){}
+  if (RENDER) saved = QS.get('style') === 'natural' ? 'natural' : 'painted';
+  setStyle(saved === 'natural' ? 'natural' : 'painted');
+  paintPass.uniforms.uAmount.value = paintTarget;
+}
+
+/* =====================================================================
+   Loop
+===================================================================== */
+const fwd = new THREE.Vector3(), fwd2 = new THREE.Vector2();
+let gustT = 0, flutT = 0;
+let grassQ = 1, qAcc = 0, qN = 0, qLast = performance.now();
+let first = true;
+const clock = new THREE.Clock();
+function step(dt, t){
+  const motion = (reduceMotion && !RENDER) ? 0.3 : 1;
+  U.uTime.value = t;
+  gustT += dt*(0.5 + 1.8*WIND_S)*motion;
+  flutT += dt*(2.5 + 5.0*WIND_S)*motion;
+  U.uGustT.value = gustT; U.uFlutT.value = flutT;
+  U.uCloudOff.value.addScaledVector(WIND_DIR, -dt*0.006*motion);
+
+  for (const G of goats) updateGoat(G, dt*motion, t);
+  goats.forEach((G, i) => {
+    const s = G.st;
+    goatBlobs[i].position.set(s.pos.x, fgH(s.pos.x, s.pos.y) + 0.05, s.pos.y);
+    goatBlobs[i].rotation.y = s.heading;
+    objUniform.value[i].set(s.pos.x, s.pos.y, 0.45);
+  });
+  objUniform.value[6].set(CHILD.x + 0.2, CHILD.y, 0.7);
+  objUniform.value[7].set(CHILD.x + 0.45, CHILD.y + 0.1, 0.5);
+
+  const nearest = goats.reduce((best, G) => { const d = G.st.pos.distanceTo(CHILD); return d < best.d ? { d, G } : best; }, { d:1e9, G:null }).G;
+  if (nearest){
+    const want = Math.atan2(nearest.st.pos.x - CHILD.x, nearest.st.pos.y - CHILD.y) - child.g.rotation.y;
+    const wrapped = Math.atan2(Math.sin(want), Math.cos(want));
+    child.yaw += (THREE.MathUtils.clamp(wrapped, -1.0, 1.0) - child.yaw)*Math.min(dt*0.8, 1);
+  }
+  child.head.rotation.set(0.1 + 0.03*Math.sin(t*0.4), child.yaw, 0.05);
+  child.torso.scale.setScalar(1 + 0.012*Math.sin(t*1.9));
+
+  for (const b of birds){
+    const a = t*b.sp + b.ph;
+    b.g.position.set(b.c.x + Math.cos(a)*b.r, b.h + Math.sin(t*0.3 + b.ph)*4, b.c.y + Math.sin(a)*b.r);
+    b.g.rotation.set(0, -a - Math.sign(b.sp)*Math.PI/2 + (b.sp < 0 ? Math.PI : 0), Math.sign(b.sp)*0.35);
+    const flap = Math.max(0, Math.sin(t*0.7 + b.ph*3)) > 0.8 ? Math.sin(t*9)*0.6 : 0.08;
+    for (const w of b.wings) w.w.rotation.z = w.sd*flap;
+  }
+
+  if (tween){
+    const k = reduceMotion ? 1 : Math.min((performance.now() - tween.start)/1600, 1);
+    camera.position.lerpVectors(tween.p0, HOME.pos, ease(k));
+    controls.target.lerpVectors(tween.t0, HOME.target, ease(k));
+    if (k >= 1) tween = null;
+  }
+  controls.update();
+  clampCamera();
+  sky.position.copy(camera.position);
+
+  camera.getWorldDirection(fwd);
+  fwd2.set(fwd.x, fwd.z);
+  if (fwd2.lengthSq() < 1e-5) fwd2.set(0,-1); else fwd2.normalize();
+  for (const L of GRASS_LAYERS) L.mat.uniforms.uCenter.value.set(camera.position.x + fwd2.x*L.ahead, camera.position.z + fwd2.y*L.ahead);
+  fgMat.uniforms.uGrassC.value.copy(grassMid.mat.uniforms.uCenter.value);
+
+  paintPass.uniforms.uAmount.value += (paintTarget - paintPass.uniforms.uAmount.value)*Math.min(dt*4, 1);
+  paintPass.uniforms.uTime.value = t;
+
+  const nowMs = performance.now(), raw = (nowMs - qLast)/1000;
+  qLast = nowMs;
+  if (!RENDER && !document.hidden && raw < 0.25){ qAcc += raw; qN++; }
+  if (qN >= 90){
+    const avg = qAcc/qN; qAcc = 0; qN = 0;
+    if (avg > 1/42 && grassQ > 0.35) grassQ *= 0.82;
+    else if (avg < 1/57 && grassQ < 1) grassQ = Math.min(1, grassQ*1.08);
+    for (const L of GRASS_LAYERS) L.geo.instanceCount = Math.floor(L.count*grassQ);
+  }
+
+  renderer.setRenderTarget(cloudRT);
+  renderer.render(cloudScene, cloudCam);
+  renderer.setRenderTarget(null);
+}
+
+function frame(){
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+  step(dt, t);
+  composer.render(dt);
+  if (first){ first = false; requestAnimationFrame(() => loaderEl.classList.add('hide')); }
+  requestAnimationFrame(frame);
+}
+
+async function renderVideo(){
+  const status = document.getElementById('loadNote');
+  const report = msg => { status.textContent = msg; document.documentElement.dataset.render = msg; };
+  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.mjs');
+  const { w, h, fps, dur, name } = RENDER;
+  const total = Math.round(fps*dur), bitrate = Math.round(w*h*fps*0.1);
+  let config = null;
+  search:
+  for (const hardwareAcceleration of ['prefer-hardware', 'no-preference']){
+    for (const codec of ['avc1.640034', 'avc1.640033', 'avc1.4d0034']){
+      const c = { codec, width:w, height:h, bitrate, framerate:fps, hardwareAcceleration, latencyMode:'quality', avc:{ format:'avc' } };
+      if ((await VideoEncoder.isConfigSupported(c)).supported){ config = c; break search; }
+    }
+  }
+  if (!config) throw new Error('No supported H.264 encoder config for ' + w + 'x' + h);
+  const muxer = new Muxer({ target:new ArrayBufferTarget(), video:{ codec:'avc', width:w, height:h, frameRate:fps }, fastStart:'in-memory' });
+  let encErr = null;
+  const enc = new VideoEncoder({ output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { encErr = e; } });
+  enc.configure(config);
+  const dt = 1/fps, t0 = performance.now();
+  step(0, 0); composer.render(0);
+  for (let f=0; f<total; f++){
+    if (encErr) throw encErr;
+    step(f === 0 ? 0 : dt, f*dt);
+    composer.render(dt);
+    const vf = new VideoFrame(canvas, { timestamp:Math.round(f*1e6/fps), duration:Math.round(1e6/fps) });
+    enc.encode(vf, { keyFrame: f % fps === 0 });
+    vf.close();
+    while (enc.encodeQueueSize > 4) await new Promise(r => enc.addEventListener('dequeue', r, { once:true }));
+    if (f % 10 === 0) report(`Rendering frame ${f+1}/${total} (${((performance.now()-t0)/1000).toFixed(1)} s)`);
+  }
+  await enc.flush();
+  if (encErr) throw encErr;
+  muxer.finalize();
+  const buf = muxer.target.buffer;
+  const secs = ((performance.now() - t0)/1000).toFixed(1);
+  report(`Encoded ${total} frames in ${secs} s, uploading ${(buf.byteLength/1e6).toFixed(1)} MB`);
+  const res = await fetch(`/save?name=${encodeURIComponent(name)}.mp4`, { method:'POST', body:buf });
+  report(res.ok ? `done:${name}.mp4:${buf.byteLength}:${secs}s` : `upload failed: ${res.status}`);
+}
+
+if (RENDER){
+  resize();
+  renderVideo().catch(err => {
+    console.error(err);
+    const msg = 'Render failed: ' + (err && err.message || err);
+    document.documentElement.dataset.render = msg;
+    document.getElementById('loadNote').textContent = msg;
+  });
+} else {
+  requestAnimationFrame(frame);
+}
+}
+</script>

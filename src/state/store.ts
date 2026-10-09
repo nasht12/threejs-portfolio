@@ -1,0 +1,117 @@
+import { create } from 'zustand';
+import { WORKS, type Work } from '../data/works';
+
+export type Mode = 'walk' | 'focus' | 'scene';
+export type Quality = 'high' | 'low';
+export type QualitySetting = 'auto' | Quality;
+export type SelectSource = 'walk' | 'ui';
+
+export interface GalleryEvent {
+  t: number;
+  type: 'select' | 'focus' | 'unfocus' | 'open' | 'close' | 'quality';
+  id?: string;
+  detail?: string;
+}
+
+export interface GalleryState {
+  works: readonly Work[];
+  index: number;
+  mode: Mode;
+  /** What the visitor chose. 'auto' defers to autoQuality, which the frame-budget monitor may lower. */
+  qualitySetting: QualitySetting;
+  autoQuality: Quality;
+  showStats: boolean;
+  reducedMotion: boolean;
+  /** Append-only interaction log (capped). Useful for analytics, replay and tests. */
+  events: GalleryEvent[];
+
+  select: (i: number, source?: SelectSource) => void;
+  step: (delta: 1 | -1) => void;
+  focus: (i?: number) => void;
+  unfocus: () => void;
+  openScene: () => void;
+  closeScene: () => void;
+  setQualitySetting: (q: QualitySetting) => void;
+  /** Called by the frame-budget monitor when frames run long. Ignored unless the setting is 'auto'. */
+  declineQuality: () => void;
+  toggleStats: () => void;
+  setReducedMotion: (on: boolean) => void;
+}
+
+export const MAX_EVENTS = 200;
+export const wrap = (i: number, n: number) => ((i % n) + n) % n;
+export const effectiveQuality = (s: Pick<GalleryState, 'qualitySetting' | 'autoQuality'>): Quality =>
+  s.qualitySetting === 'auto' ? s.autoQuality : s.qualitySetting;
+
+/** First guess before any frames are measured: small machines start on the light tier. */
+export function guessQuality(nav: { hardwareConcurrency?: number; deviceMemory?: number }): Quality {
+  if (nav.deviceMemory !== undefined && nav.deviceMemory <= 4) return 'low';
+  if ((nav.hardwareConcurrency ?? 8) <= 4) return 'low';
+  return 'high';
+}
+
+type Init = Partial<Pick<GalleryState, 'works' | 'index' | 'mode' | 'qualitySetting' | 'autoQuality' | 'reducedMotion'>>;
+
+export function createGalleryStore(init: Init = {}) {
+  return create<GalleryState>()((set, get) => {
+    const logged = (e: Omit<GalleryEvent, 't'>, patch: Partial<GalleryState> = {}) =>
+      set(s => ({ ...patch, events: [...s.events, { t: performance.now(), ...e }].slice(-MAX_EVENTS) }));
+    const idAt = (i: number) => get().works[i]?.id;
+
+    return {
+      works: WORKS,
+      index: 0,
+      mode: 'walk',
+      qualitySetting: 'auto',
+      autoQuality: 'high',
+      showStats: false,
+      reducedMotion: false,
+      events: [],
+      ...init,
+
+      select: (i, source = 'ui') => {
+        const s = get();
+        if (s.mode === 'scene') return;
+        const index = wrap(i, s.works.length);
+        if (index === s.index) return;
+        logged({ type: 'select', id: idAt(index), detail: source }, { index });
+      },
+      step: delta => get().select(get().index + delta),
+      focus: (i = get().index) => {
+        const s = get();
+        if (s.mode === 'scene') return;
+        const index = wrap(i, s.works.length);
+        if (s.mode === 'focus' && index === s.index) return;
+        logged({ type: 'focus', id: idAt(index) }, { index, mode: 'focus' });
+      },
+      unfocus: () => {
+        if (get().mode !== 'focus') return;
+        logged({ type: 'unfocus', id: idAt(get().index) }, { mode: 'walk' });
+      },
+      openScene: () => {
+        if (get().mode === 'scene') return;
+        logged({ type: 'open', id: idAt(get().index) }, { mode: 'scene' });
+      },
+      closeScene: () => {
+        if (get().mode !== 'scene') return;
+        logged({ type: 'close', id: idAt(get().index) }, { mode: 'focus' });
+      },
+      setQualitySetting: q => {
+        if (q === get().qualitySetting) return;
+        logged({ type: 'quality', detail: q }, { qualitySetting: q });
+      },
+      declineQuality: () => {
+        const s = get();
+        if (s.qualitySetting !== 'auto' || s.autoQuality === 'low') return;
+        logged({ type: 'quality', detail: 'auto-low' }, { autoQuality: 'low' });
+      },
+      toggleStats: () => set(s => ({ showStats: !s.showStats })),
+      setReducedMotion: on => set({ reducedMotion: on }),
+    };
+  });
+}
+
+const nav = typeof navigator === 'undefined' ? {} : (navigator as Navigator & { deviceMemory?: number });
+const reduced = typeof matchMedia === 'undefined' ? false : matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+export const useGallery = createGalleryStore({ autoQuality: guessQuality(nav), reducedMotion: reduced });
