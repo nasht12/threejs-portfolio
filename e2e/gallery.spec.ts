@@ -34,6 +34,9 @@ test('the ring renders cards, not a blank canvas', async ({ page }) => {
 });
 
 test('keyboard: turn the ring, dive through the portal, come back', async ({ page }) => {
+  // This test is about the page, not the scene (Isle has its own tests). A same-origin iframe shares the page's
+  // thread, and on CI's software WebGL the scene's shader compile blocks key presses for over a minute.
+  await page.route('**/scenes/isle-of-the-dead.html', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Isle stub</title>' }));
   await waitForHall(page);
 
   await page.keyboard.press('Tab'); // skip link
