@@ -127,5 +127,7 @@ test('no WCAG A/AA violations on the ring, before and after turning it', async (
   expect((await scan()).violations).toEqual([]);
   await page.getByRole('button', { name: /Gulf Stream Study/ }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Gulf Stream Study');
+  // scan the panel as it's read, not mid-fade (a half-transparent frame fails contrast by construction)
+  await expect(page.locator('.caption')).toHaveCSS('opacity', '1');
   expect((await scan()).violations).toEqual([]);
 });
