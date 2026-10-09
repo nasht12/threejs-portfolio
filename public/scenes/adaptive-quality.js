@@ -3,7 +3,7 @@
  *
  * The scenes were tuned on a discrete GPU: up to 2x pixel ratio, a 4x multisampled post chain and
  * ~570k animated grass blades. On integrated graphics that measured 2-5 fps. This walks a ladder of
- * settings (render scale, grass density, multisampling) one rung at a time: down while the median
+ * settings (render scale, grass density, terrain detail) one rung at a time: down while the median
  * frame runs long, up while there is headroom. A rung that proved too slow isn't retried for a
  * while, so it settles instead of oscillating. Decisions are made on time, not frame count, so a
  * 3 fps machine is rescued within seconds.
@@ -18,8 +18,17 @@ export const OPTS = {
   minFrames: 6, // …and at least this many frames
   stallMs: 1000, // a longer gap is a stall or a hidden tab, not a frame
   settleMs: 500, // ignore frames right after a change while buffers reallocate
-  retryMs: 20000, // how long a rung that was too slow stays off-limits
+  retryMs: 45000, // how long a rung that was too slow stays off-limits
+  agree: 2, // consecutive windows that must agree before a change (except when far behind)
 };
+
+/*
+ * What the ladder deliberately does NOT trade away, because it shows as flicker rather than softness:
+ * - MSAA: the scenes' foliage uses alpha-to-coverage, which needs it; without it cypress edges shimmer.
+ * - Reflection resolution: the river/sea reflection is distorted by ripples; below view resolution it swims.
+ * - Shadow refresh on the upper rungs: stepped shadows on moving figures read as blinking.
+ * - Stability: every change is visible (grass density, sharpness), so changes need agreement and are rare.
+ */
 
 /** Rungs from best to lightest. Above 1x the ladder only adds resolution; below it, grass thins first. */
 export function buildLadder(cap) {
@@ -29,11 +38,11 @@ export function buildLadder(cap) {
     ...top,
     { scale: 1, grass: 1, msaa: true, shadowEvery: 1 },
     { scale: 1, grass: 0.7, msaa: true, shadowEvery: 1 },
-    { scale: 0.85, grass: 0.5, msaa: true, shadowEvery: 2 },
-    { scale: 0.75, grass: 0.35, msaa: true, shadowEvery: 2 },
-    { scale: 0.65, grass: 0.25, msaa: false, shadowEvery: 3, reflect: 0.5 },
-    { scale: 0.55, grass: 0.15, msaa: false, shadowEvery: 3, reflect: 0.5 },
-    { scale: 0.5, grass: 0.08, msaa: false, shadowEvery: 4, reflect: 0.5 },
+    { scale: 0.85, grass: 0.5, msaa: true, shadowEvery: 1 },
+    { scale: 0.75, grass: 0.35, msaa: true, shadowEvery: 1 },
+    { scale: 0.65, grass: 0.25, msaa: true, shadowEvery: 1 },
+    { scale: 0.55, grass: 0.15, msaa: true, shadowEvery: 2 },
+    { scale: 0.5, grass: 0.08, msaa: true, shadowEvery: 2 },
   ];
 }
 
@@ -89,7 +98,7 @@ export function adaptQuality({ renderer, cap, setScale, setGrass = () => {}, set
   const ladder = buildLadder(cap);
   const base = ladder.findIndex(r => r.scale === 1 && r.grass === 1);
   let rung = looksIntegrated(gpuName(renderer)) ? Math.min(ladder.length - 1, base + 3) : base;
-  let best = 0, retryAt = Infinity, frames = [], windowStart = 0, last = 0, settleUntil = 0, msaa = true;
+  let best = 0, retryAt = Infinity, frames = [], windowStart = 0, last = 0, settleUntil = 0, msaa = true, agreeing = 0, lastDir = 0;
 
   function apply() {
     const r = ladder[rung];
@@ -116,10 +125,16 @@ export function adaptQuality({ renderer, cap, setScale, setGrass = () => {}, set
     if (t > retryAt) { best = 0; retryAt = Infinity; }
     frames.push(gap);
     if (t - windowStart < o.windowMs || frames.length < o.minFrames) return;
-    const next = nextRung(median(frames), rung, ladder.length, best, o);
+    const m = median(frames);
+    const next = nextRung(m, rung, ladder.length, best, o);
     frames = [];
     windowStart = t;
-    if (next === rung) return;
+    // a change needs `agree` windows in a row pointing the same way, unless frames are far behind
+    const dir = Math.sign(next - rung);
+    agreeing = dir !== 0 && dir === lastDir ? agreeing + 1 : dir !== 0 ? 1 : 0;
+    lastDir = dir;
+    if (next === rung || (agreeing < o.agree && m <= o.verySlowMs)) return;
+    agreeing = 0;
     if (next > rung) { best = Math.max(best, rung + 1); retryAt = t + o.retryMs; } // this rung was too much: don't climb back to it for a while
     rung = next;
     apply();

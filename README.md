@@ -34,11 +34,12 @@ The scenes were tuned on a discrete GPU. On integrated graphics (Intel UHD 770, 
 landscapes measured 3–6 fps. `public/scenes/adaptive-quality.js`, wired in by `scripts/patch-scenes.mjs`, fixes that
 without touching how they look on a strong GPU:
 
-- **A quality ladder driven by measured frame times:** render scale, grass density (the ~570k blades are stored in random order, so drawing the first N thins the meadow evenly), MSAA, shadow-map refresh and reflection resolution. It steps down within seconds when frames run long, climbs back when there is headroom, and won't retry a rung that was just too slow.
+- **A quality ladder driven by measured frame times:** render scale and grass density (the ~570k blades are stored in random order, so drawing the first N thins the meadow evenly), with shadow refresh eased only on the last two rungs. It steps down within seconds when frames run long, needs two agreeing measurements to change, and won't retry a rung that was too slow for 45 s, so quality doesn't visibly pop.
+- **It never trades away what reads as flicker:** MSAA stays on (the cypress impostors use alpha-to-coverage), and the rippled reflections stay at view resolution. Turning those off bought ~5 fps but made foliage blink and water swim.
 - **Terrain resolution by GPU class:** a quarter of the triangles on integrated GPUs. Profiling showed the 1.4M-triangle valley mesh, drawn for the view, the reflection and the shadow map, was the single biggest cost.
 - **The guest character is a file, not a 2.6 MB base64 block** at the top of every page, so scenes start building before it would have finished downloading.
 
-| Integrated GPU, 1280×720 | before | after |
+| Integrated GPU, 1280×720 (measured with an earlier, flicker-prone ladder; the flicker-free one gives back ~5 fps on the lightest rung) | before | after |
 |---|---|---|
 | Merced River | 3.3 fps | 32 fps |
 | Isle of the Dead | 4.6 fps | 40 fps |

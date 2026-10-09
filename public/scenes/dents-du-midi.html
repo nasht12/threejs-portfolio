@@ -736,15 +736,14 @@ const grassClose = grassLayer({ count:150000, tile:24,  fadeR:12,  scaleH:1.0, s
 const grassMid   = grassLayer({ count:240000, tile:70,  fadeR:35,  scaleH:1.0, scaleW:1.1, inner:6,  segs:4, ahead:28 });
 const grassFar   = grassLayer({ count:100000, tile:220, fadeR:110, scaleH:1.2, scaleW:2.6, inner:26, segs:3, ahead:80 });
 const GRASS_LAYERS = [grassClose, grassMid, grassFar];
-const QUALITY = { shadowEvery: 1, reflect: 1 };
-// Live view only (offline renders keep full quality): resolution, grass, MSAA, shadows and reflections follow the GPU.
+const QUALITY = { shadowEvery: 1 };
+// Live view only (offline renders keep full quality): resolution, grass and shadow cadence follow the GPU.
 if (!RENDER) adaptQuality({
   renderer,
   cap: Math.min(window.devicePixelRatio || 1, 1.5),
   setScale: s => { dpr = s; renderer.setPixelRatio(s); composer.setPixelRatio(s); resize(); },
   setGrass: q => { for (const L of GRASS_LAYERS) L.geo.instanceCount = Math.floor(L.count * q); },
   setShadowEvery: n => { QUALITY.shadowEvery = n; },
-  setReflect: f => { QUALITY.reflect = f; },
   msaaTargets: [composer.renderTarget1, composer.renderTarget2],
 });
 

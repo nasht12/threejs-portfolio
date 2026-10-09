@@ -1,18 +1,18 @@
 /** World units are metres. Cards stand on a ring around the y axis, facing outward; the camera looks at the front of the ring. */
-export const CARD = { w: 1.3, h: 1.9, r: 0.1 } as const;
+export const CARD = { w: 1.42, h: 1.9, r: 0.1 } as const;
 /** How far behind each card its scene sits: the depth you see through the window, and fly into. */
-export const DEPTH = 3;
+export const DEPTH = 2;
 /** Height of the backdrop inside each portal; its width follows the poster's aspect. */
-export const BACKDROP_H = 6;
+export const BACKDROP_H = 2.9;
 /** Default camera distance from the front card; scroll zooms between ZOOM.min and ZOOM.max. */
-export const CAM_DIST = 5;
+export const CAM_DIST = 5.6;
 export const ZOOM = { min: 2.4, max: 10 } as const;
 export const CAM_Y = 0.15;
 /** The camera aims a little below the cards so they sit above the details panel at the bottom. */
 export const LOOK_Y = -0.3;
 export const FOV = 38;
 /** How close the camera gets to the card when it dives through. */
-export const ENTER_DIST = 0.55;
+export const ENTER_DIST = 0.45;
 
 const TAU = Math.PI * 2;
 

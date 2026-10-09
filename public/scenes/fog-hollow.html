@@ -907,7 +907,7 @@ function resize(){
   paintPass.uniforms.uRes.value.set(w*dpr, h*dpr);
   atmosPass.uniforms.uRes.value.set(w*dpr, h*dpr);
   finishPass.uniforms.uRes.value.set(w*dpr, h*dpr);
-  if (REFLECT.rt && !RENDER) REFLECT.rt.setSize(Math.round(w*dpr*QUALITY.reflect), Math.round(h*dpr*QUALITY.reflect));
+  if (REFLECT.rt && !RENDER) REFLECT.rt.setSize(Math.round(w*dpr), Math.round(h*dpr));
   camera.aspect = w/h;
   camera.fov = w/h < 0.8 ? 62 : 52;
   camera.updateProjectionMatrix();
@@ -2110,15 +2110,14 @@ const grassClose = grassLayer({ count:180000, tile:24,  fadeR:13,  scaleH:1.0,  
 const grassMid   = grassLayer({ count:260000, tile:84,  fadeR:44,  scaleH:1.0,  scaleW:1.35, inner:6,  segs:4, ahead:34 });
 const grassFar   = grassLayer({ count:130000, tile:260, fadeR:130, scaleH:1.15, scaleW:2.2,  inner:28, segs:3, ahead:95 });
 const GRASS_LAYERS = [grassClose, grassMid, grassFar];
-const QUALITY = { shadowEvery: 1, reflect: 1 };
-// Live view only (offline renders keep full quality): resolution, grass, MSAA, shadows and reflections follow the GPU.
+const QUALITY = { shadowEvery: 1 };
+// Live view only (offline renders keep full quality): resolution, grass and shadow cadence follow the GPU.
 if (!RENDER) adaptQuality({
   renderer,
   cap: Math.min(window.devicePixelRatio || 1, 2),
   setScale: s => { dpr = s; renderer.setPixelRatio(s); composer.setPixelRatio(s); resize(); },
   setGrass: q => { for (const L of GRASS_LAYERS) L.geo.instanceCount = Math.floor(L.count * q); },
   setShadowEvery: n => { QUALITY.shadowEvery = n; },
-  setReflect: f => { QUALITY.reflect = f; },
   msaaTargets: [composer.renderTarget1, composer.renderTarget2],
 });
 

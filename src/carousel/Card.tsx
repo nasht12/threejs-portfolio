@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { MeshPortalMaterial, Text, useTexture } from '@react-three/drei';
 import { geometry } from 'maath';
-import { Color, FrontSide, MathUtils, SRGBColorSpace, Vector3, type Group, type MeshBasicMaterial, type Texture } from 'three';
+import { Color, FrontSide, MathUtils, SRGBColorSpace, Vector2, Vector3, type Group, type MeshBasicMaterial, type ShaderMaterial, type Texture } from 'three';
 import { useGallery, effectiveQuality } from '../state/store';
 import type { Work } from '../data/works';
 import { asset } from '../config';
@@ -14,6 +14,46 @@ import { hideDetailsSoon, showDetails } from '../ui/details';
 const DIM = new Color('#9c9c9c');
 const FULL = new Color('#ffffff');
 const SMALL_FONT = asset('fonts/inter-500.woff');
+
+/*
+ * The card's edge, drawn analytically: a signed-distance rounded rectangle in a fragment shader, so the rim and the
+ * soft shadow are antialiased per pixel (fwidth), at any angle and pixel ratio. The hairline rim sits exactly on the
+ * card's own raster edge and covers its stair-steps. One small quad per card, no extra render pass.
+ */
+const EDGE_MARGIN = 0.3;
+const EDGE_VS = `varying vec2 vP;
+void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const EDGE_FS = `uniform vec2 uHalf; uniform float uR; uniform float uRim; uniform float uOpacity;
+varying vec2 vP;
+float sdRoundBox(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+void main(){
+  float d = sdRoundBox(vP, uHalf, uR);
+  float aa = fwidth(d);
+  float rim = 1.0 - smoothstep(uRim - aa, uRim + aa, abs(d));
+  float ds = sdRoundBox(vP + vec2(0.0, 0.045), uHalf, uR);           // shadow, dropped slightly
+  float shadow = 0.13 * exp(-max(ds, 0.0) / 0.075);                 // full strength under the card, fading outward
+  shadow *= smoothstep(-aa, aa, d);                                   // never over the card itself
+  vec4 col = mix(vec4(0.0, 0.0, 0.0, shadow), vec4(0.985, 0.985, 0.98, 1.0), rim * 0.95);
+  gl_FragColor = vec4(col.rgb, col.a * uOpacity);
+}`;
+
+function CardEdge({ front }: { front: boolean }) {
+  const mat = useRef<ShaderMaterial>(null);
+  const uniforms = useMemo(() => ({
+    uHalf: { value: new Vector2(CARD.w / 2, CARD.h / 2) },
+    uR: { value: CARD.r },
+    uRim: { value: 0.0055 },
+    uOpacity: { value: 1 },
+  }), []);
+  // fade out as the camera dives through the front card
+  useFrame(() => { if (mat.current) mat.current.uniforms.uOpacity.value = front ? 1 - ease(transition.value) : 1; });
+  return (
+    <mesh position-z={0.002} renderOrder={1}>
+      <planeGeometry args={[CARD.w + EDGE_MARGIN * 2, CARD.h + EDGE_MARGIN * 2]} />
+      <shaderMaterial ref={mat} vertexShader={EDGE_VS} fragmentShader={EDGE_FS} uniforms={uniforms} transparent depthWrite={false} />
+    </mesh>
+  );
+}
 
 /** The scene seen through the live portal: the poster (or its loop) hung DEPTH metres behind the card. */
 function Inside({ map, aspect }: { map: Texture; aspect: number }) {
@@ -118,6 +158,7 @@ export function Card({ work, index, count }: { work: Work; index: number; count:
             <meshBasicMaterial ref={fakeMat} map={fake} color={DIM} toneMapped={false} />
           )}
         </mesh>
+        <CardEdge front={front} />
         <Text font={SMALL_FONT} fontSize={0.062} anchorX="left" anchorY="bottom" color="#ffffff" fillOpacity={0.85} position={[-CARD.w / 2 + 0.11, -CARD.h / 2 + 0.09, 0.01]}>
           {`${String(index + 1).padStart(2, '0')}  /${work.id}`}
         </Text>

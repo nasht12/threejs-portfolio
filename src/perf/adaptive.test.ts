@@ -5,10 +5,16 @@ describe('scene quality ladder', () => {
   it('starts at the device ratio and ends at half resolution with sparse grass', () => {
     const l = buildLadder(2);
     expect(l[0]).toMatchObject({ scale: 2, grass: 1, msaa: true });
-    expect(l.at(-1)).toMatchObject({ scale: 0.5, msaa: false });
+    expect(l.at(-1)).toMatchObject({ scale: 0.5 });
     expect(l.at(-1)!.grass).toBeLessThan(0.1);
     // every rung is lighter than the one before
     for (let i = 1; i < l.length; i++) expect(l[i].scale * l[i].grass).toBeLessThan(l[i - 1].scale * l[i - 1].grass);
+  });
+
+  it('never trades away what shows up as flicker: MSAA, or shadow refresh on the upper rungs', () => {
+    const l = buildLadder(2);
+    expect(l.every(r => r.msaa)).toBe(true); // alpha-to-coverage foliage needs it
+    expect(l.slice(0, -2).every(r => r.shadowEvery === 1)).toBe(true);
   });
 
   it('has no rungs above 1x on a 1x display', () => {

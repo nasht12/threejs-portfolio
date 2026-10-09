@@ -34,15 +34,14 @@ for (const [page, cap] of Object.entries(ADAPTIVE)) {
   // the page's own grass governor only counted frames under 250 ms, so it never acted on slow GPUs
   s = replaceOnce(s, 'if (!RENDER && !document.hidden && raw < 0.25){ qAcc += raw; qN++; }', '/* grass density is set by adaptive-quality.js */', page);
   s = replaceOnce(s, 'const GRASS_LAYERS = [grassClose, grassMid, grassFar];', `const GRASS_LAYERS = [grassClose, grassMid, grassFar];
-const QUALITY = { shadowEvery: 1, reflect: 1 };
-// Live view only (offline renders keep full quality): resolution, grass, MSAA, shadows and reflections follow the GPU.
+const QUALITY = { shadowEvery: 1 };
+// Live view only (offline renders keep full quality): resolution, grass and shadow cadence follow the GPU.
 if (!RENDER) adaptQuality({
   renderer,
   cap: Math.min(window.devicePixelRatio || 1, ${cap}),
   setScale: s => { dpr = s; renderer.setPixelRatio(s); composer.setPixelRatio(s); resize(); },
   setGrass: q => { for (const L of GRASS_LAYERS) L.geo.instanceCount = Math.floor(L.count * q); },
   setShadowEvery: n => { QUALITY.shadowEvery = n; },
-  setReflect: f => { QUALITY.reflect = f; },
   msaaTargets: [composer.renderTarget1, composer.renderTarget2],
 });`, page);
   // the painted-landscape engine: terrain grid by GPU class (built once, at load)…
@@ -52,9 +51,7 @@ if (!RENDER) adaptQuality({
   if (s.includes('shadowNear.shadow.needsUpdate = true;')) {
     s = replaceOnce(s, 'shadowNear.shadow.needsUpdate = true;', 'if (RENDER || shadowFrame % QUALITY.shadowEvery === 0) shadowNear.shadow.needsUpdate = true;', page);
   }
-  // …and the soft-blurred river reflection at a fraction of the view on the lightest rungs
-  s = s.replace('if (REFLECT.rt && !RENDER) REFLECT.rt.setSize(Math.round(w*dpr), Math.round(h*dpr));',
-    'if (REFLECT.rt && !RENDER) REFLECT.rt.setSize(Math.round(w*dpr*QUALITY.reflect), Math.round(h*dpr*QUALITY.reflect));');
+  // (the reflection stays at view resolution: below it, the ripple distortion makes it swim)
   await writeFile(path, s);
   console.log('adaptive: patched', page);
 }
