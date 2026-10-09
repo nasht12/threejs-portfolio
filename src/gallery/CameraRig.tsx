@@ -20,12 +20,20 @@ interface RigState {
   look: Vector3;
 }
 
-function targetPose(walkX: number) {
+/** Width the caption panel takes from the left of a wide screen (panel + margins), in CSS px. */
+const PANEL_PX = 470;
+const WIDE_PX = 900;
+
+/** Where the camera should be. At a frame on a wide screen, the camera slides left so the picture centres in the space beside the caption. */
+function targetPose(walkX: number, viewW: number, viewH: number) {
   const s = useGallery.getState();
   if (s.mode === 'focus') {
     const x = xOf(s.index);
     const { h } = artSize(s.works[s.index].aspect);
-    return { x, y: ART_Y, z: focusDistance(h, FOV), lx: x, ly: ART_Y };
+    const z = focusDistance(h, FOV);
+    const metresPerPx = (2 * z * Math.tan((FOV * Math.PI) / 360)) / Math.max(1, viewH);
+    const shift = viewW > WIDE_PX ? (PANEL_PX / 2) * metresPerPx : 0;
+    return { x: x - shift, y: ART_Y, z, lx: x - shift, ly: ART_Y };
   }
   return { x: walkX, y: EYE, z: WALK_Z, lx: walkX, ly: ART_Y - 0.1 };
 }
@@ -47,12 +55,12 @@ export function CameraRig() {
 
   // Start at the right pose (e.g. returning from a scene), not flying in from the origin.
   useLayoutEffect(() => {
-    const p = targetPose(rig.current.walkX);
+    const p = targetPose(rig.current.walkX, gl.domElement.clientWidth, gl.domElement.clientHeight);
     camera.position.set(p.x, p.y, p.z);
     rig.current.look.set(p.lx, p.ly, 0);
     camera.lookAt(rig.current.look);
     invalidate();
-  }, [camera, invalidate]);
+  }, [camera, gl, invalidate]);
 
   // Selection changed from the UI (keys, list, caption): walk to it. Any store change wakes the loop.
   useEffect(() => useGallery.subscribe((s, prev) => {
@@ -138,7 +146,7 @@ export function CameraRig() {
       if (!r.dragging && r.vel === 0) r.walkX = MathUtils.damp(r.walkX, xOf(s.index), SNAP, dt);
     }
 
-    const p = targetPose(r.walkX);
+    const p = targetPose(r.walkX, gl.domElement.clientWidth, gl.domElement.clientHeight);
     const k = s.reducedMotion ? 1e4 : FOLLOW;
     camera.position.set(
       MathUtils.damp(camera.position.x, p.x, k, dt),
