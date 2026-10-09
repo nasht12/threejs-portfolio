@@ -4,8 +4,12 @@ export const CARD = { w: 1.3, h: 1.9, r: 0.1 } as const;
 export const DEPTH = 3;
 /** Height of the backdrop inside each portal; its width follows the poster's aspect. */
 export const BACKDROP_H = 6;
+/** Default camera distance from the front card; scroll zooms between ZOOM.min and ZOOM.max. */
 export const CAM_DIST = 5;
+export const ZOOM = { min: 2.4, max: 10 } as const;
 export const CAM_Y = 0.15;
+/** The camera aims a little below the cards so they sit above the details panel at the bottom. */
+export const LOOK_Y = -0.3;
 export const FOV = 38;
 /** How close the camera gets to the card when it dives through. */
 export const ENTER_DIST = 0.55;
@@ -46,4 +50,9 @@ export function windowCrop(aspect: number, cam: { x: number; y: number; z: numbe
   const cy = 0.5 + (-cam.y * DEPTH) / z / bh;
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   return { rx, ry, ox: clamp(cx - rx / 2, 0, 1 - rx), oy: clamp(cy - ry / 2, 0, 1 - ry) };
+}
+
+/** Zoom by a wheel delta (pixels). Multiplicative, so each notch feels the same near or far. */
+export function zoomBy(dist: number, deltaY: number) {
+  return Math.min(ZOOM.max, Math.max(ZOOM.min, dist * Math.exp(deltaY * 0.0012)));
 }

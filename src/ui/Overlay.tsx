@@ -24,7 +24,7 @@ export function Tools() {
 }
 
 export function Hint() {
-  return <p className="hint" aria-hidden="true">Drag, scroll or ← → to turn · click the front card to go in</p>;
+  return <p className="hint" aria-hidden="true">Drag to slide · scroll to zoom · click the front card to go in</p>;
 }
 
 export function Caption() {
@@ -45,11 +45,15 @@ export function Caption() {
       onBlur={() => hideDetailsSoon()}
     >
     <section className="caption" aria-labelledby="cap-title">
-      <p className="count">{index + 1} / {n}</p>
-      <h1 id="cap-title">{work.title}</h1>
-      {work.after && <p className="after">{work.after}</p>}
-      <p className="blurb">{work.blurb}</p>
-      <ul className="tech">{work.tech.map(t => <li key={t}>{t}</li>)}</ul>
+      <div className="cap-head">
+        <p className="count">{index + 1} / {n}</p>
+        <h1 id="cap-title">{work.title}</h1>
+        {work.after && <p className="after">{work.after}</p>}
+      </div>
+      <div className="cap-body">
+        <p className="blurb">{work.blurb}</p>
+        <ul className="tech">{work.tech.map(t => <li key={t}>{t}</li>)}</ul>
+      </div>
       <div className="actions">
         <button type="button" className="primary" disabled={mode === 'focus'} onClick={() => focus()}>
           {mode === 'focus' ? 'Entering…' : 'Enter the scene'}

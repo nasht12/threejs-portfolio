@@ -34,13 +34,17 @@ a { color: inherit; }
 .chip[aria-pressed="true"] { border-color: var(--gilt); color: var(--gilt); }
 
 /* caption */
-/* details: beside the front card (whose on-screen half width the canvas publishes), shown on hover or keyboard focus */
-.panel { position: absolute; top: 50%; left: calc(50% + var(--card-half, 170px) + 28px); width: min(370px, calc(50% - var(--card-half, 170px) - 48px)); transform: translateY(-50%); }
-.caption { background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; max-height: calc(100vh - 180px); overflow: auto;
-  opacity: 0; transform: translateX(-10px); visibility: hidden; transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; }
+/* details: a bar along the bottom, under the cards; shown while the front card is hovered or on keyboard focus */
+.panel { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 62px); width: min(940px, calc(100% - 40px)); transform: translateX(-50%); }
+.caption { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(0, 2.4fr) auto; gap: 22px; align-items: start; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px;
+  opacity: 0; transform: translateY(10px); visibility: hidden; transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; }
 .panel[data-open="true"] .caption, .panel:focus-within .caption { opacity: 1; transform: none; visibility: visible; transition: opacity .2s ease, transform .2s ease; }
+.caption .blurb { margin: 0; }
+.caption .tech { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 6px; }
+.caption .actions { margin: 0; flex-direction: column; align-items: flex-end; gap: 6px; }
+.caption .size { margin: 0; }
 .count { margin: 0; font-size: 11.5px; letter-spacing: 0.16em; color: var(--gilt); }
-.caption h1 { margin: 2px 0 0; font-size: 26px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.15; }
+.caption h1 { margin: 2px 0 0; font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.15; }
 .after { margin: 2px 0 0; color: var(--dim); font-size: 13px; }
 .blurb { margin: 10px 0 0; }
 .tech { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; color: var(--dim); }
@@ -73,11 +77,15 @@ a { color: inherit; }
 .viewer-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; color: var(--dim); }
 
 @media (max-width: 760px), (hover: none) {
-  /* no room beside the card, or no hover: details sit at the bottom and stay open */
-  .panel { top: auto; transform: none; left: 12px; width: calc(100% - 24px); bottom: 64px; }
-  .caption { opacity: 1; transform: none; visibility: visible; padding: 12px 14px; max-height: 36vh; }
-  .caption h1 { font-size: 21px; }
-  .tech { display: none; }
+  /* no hover, or no room: the details stay open */
+  .caption { opacity: 1; transform: none; visibility: visible; }
+}
+@media (max-width: 760px) {
+  .panel { width: calc(100% - 24px); bottom: 58px; }
+  .caption { grid-template-columns: 1fr; gap: 8px; padding: 12px 14px; max-height: 40vh; overflow: auto; }
+  .caption h1 { font-size: 19px; }
+  .caption .actions { flex-direction: row; align-items: center; }
+  .tech { display: none !important; }
 }
 @media (max-width: 760px) {
   .works { left: 8px; right: 8px; top: calc(env(safe-area-inset-top, 0px) + 40px); }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { angleOf, CARD, frontAngle, nearestIndex, radiusFor, step, windowCrop } from './layout';
+import { angleOf, CARD, CAM_DIST, frontAngle, nearestIndex, radiusFor, step, windowCrop, ZOOM, zoomBy } from './layout';
 import { median, shouldDecline, BUDGET_MS, WINDOW } from '../perf/budget';
 
 describe('ring', () => {
@@ -25,6 +25,18 @@ describe('ring', () => {
     const theta = angleOf(6, n) + Math.PI * 2; // one full turn on, card 6 in front
     const to0 = frontAngle(theta, 0, n);
     expect(Math.abs(to0 - theta)).toBeCloseTo(step(n)); // next card, not six back
+  });
+});
+
+describe('zoom', () => {
+  it('scrolling down zooms out, up zooms in, within limits', () => {
+    expect(zoomBy(CAM_DIST, 100)).toBeGreaterThan(CAM_DIST);
+    expect(zoomBy(CAM_DIST, -100)).toBeLessThan(CAM_DIST);
+    expect(zoomBy(CAM_DIST, 1e6)).toBe(ZOOM.max);
+    expect(zoomBy(CAM_DIST, -1e6)).toBe(ZOOM.min);
+  });
+  it('is symmetric: in then out by the same amount returns to the start', () => {
+    expect(zoomBy(zoomBy(CAM_DIST, 120), -120)).toBeCloseTo(CAM_DIST);
   });
 });
 

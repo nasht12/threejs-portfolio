@@ -13,7 +13,6 @@ import { hideDetailsSoon, showDetails } from '../ui/details';
 
 const DIM = new Color('#9c9c9c');
 const FULL = new Color('#ffffff');
-const TITLE_FONT = asset('fonts/inter-600.woff');
 const SMALL_FONT = asset('fonts/inter-500.woff');
 
 /** The scene seen through the live portal: the poster (or its loop) hung DEPTH metres behind the card. */
@@ -119,22 +118,7 @@ export function Card({ work, index, count }: { work: Work; index: number; count:
             <meshBasicMaterial ref={fakeMat} map={fake} color={DIM} toneMapped={false} />
           )}
         </mesh>
-        <Text
-          font={TITLE_FONT}
-          fontSize={0.13}
-          lineHeight={0.95}
-          maxWidth={CARD.w - 0.22}
-          anchorX="left"
-          anchorY="top"
-          color="#ffffff"
-          outlineWidth={0.003}
-          outlineColor="#000000"
-          outlineOpacity={0.25}
-          position={[-CARD.w / 2 + 0.11, CARD.h / 2 - 0.11, 0.01]}
-        >
-          {work.title}
-        </Text>
-        <Text font={SMALL_FONT} fontSize={0.058} anchorX="left" anchorY="bottom" color="#ffffff" fillOpacity={0.85} position={[-CARD.w / 2 + 0.11, -CARD.h / 2 + 0.09, 0.01]}>
+        <Text font={SMALL_FONT} fontSize={0.062} anchorX="left" anchorY="bottom" color="#ffffff" fillOpacity={0.85} position={[-CARD.w / 2 + 0.11, -CARD.h / 2 + 0.09, 0.01]}>
           {`${String(index + 1).padStart(2, '0')}  /${work.id}`}
         </Text>
       </group>
