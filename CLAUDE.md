@@ -14,6 +14,7 @@ at https://nasht12.github.io/threejs-portfolio/ by `.github/workflows/deploy.yml
 | `npm test` | Vitest: store, routing, layout and frame-budget logic |
 | `npm run test:e2e` | Playwright against a production build, system Chrome + SwiftShader (no GPU needed) |
 | `node scripts/capture-posters.mjs [id…]` | Re-capture poster stills for scenes without rendered video |
+| `node scripts/patch-scenes.mjs` | Wire adaptive quality into the scene pages (after re-copying them) |
 
 Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the same three before deploying.
 
@@ -26,7 +27,8 @@ Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the s
 - `src/gallery/`: `useLoopTexture` (preview video lifecycle) and the first-load `Loader`.
 - `src/perf/`: the frame-budget monitor and the stats probe.
 - `src/ui/`: DOM: header, caption, list of works, live-region announcer, scene viewer.
-- `public/scenes/`: the live scenes, copied as-is from their source project (vanilla three.js, loaded from jsDelivr). Treat them as build inputs, not app code.
+- `public/scenes/`: the live scenes, copied from their source project (vanilla three.js, loaded from jsDelivr). Treat them as build inputs, except for one patch: `node scripts/patch-scenes.mjs` wires in `adaptive-quality.js` (idempotent; re-run after re-copying).
+- `public/scenes/adaptive-quality.js`: keeps the live scenes smooth on any GPU by walking a ladder of render scale, grass density and MSAA from measured frame times. Its decision logic is unit-tested in `src/perf/adaptive.test.ts`.
 - `public/media/`: posters (`<id>.jpg`) and 6 s preview loops (`<id>.mp4`, H.264, about 1 to 2 MB).
 
 ## Rules for code in the canvas

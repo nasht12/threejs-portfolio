@@ -158,6 +158,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { adaptQuality, terrainGrid } from './adaptive-quality.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -305,7 +306,7 @@ const cur = toState(PRESETS[startKey]);
    Renderer / composer
 ===================================================================== */
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance', preserveDrawingBuffer: !!RENDER });
-const dpr = RENDER ? 1 : Math.min(window.devicePixelRatio||1, 1.5);
+let dpr = RENDER ? 1 : Math.min(window.devicePixelRatio||1, 1.5);
 renderer.setPixelRatio(dpr);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1009,6 +1010,17 @@ const grassClose = grassLayer({ count:150000, tile:26,  fadeR:13, scaleH:1.0, sc
 const grassMid   = grassLayer({ count:300000, tile:60,  fadeR:30, scaleH:1.0, scaleW:1.1, inner:6,  segs:4, ahead:20 });
 const grassFar   = grassLayer({ count:90000,  tile:170, fadeR:84, scaleH:1.3, scaleW:2.3, inner:24, segs:3, ahead:58 });
 const GRASS_LAYERS = [grassClose, grassMid, grassFar];
+const QUALITY = { shadowEvery: 1, reflect: 1 };
+// Live view only (offline renders keep full quality): resolution, grass, MSAA, shadows and reflections follow the GPU.
+if (!RENDER) adaptQuality({
+  renderer,
+  cap: Math.min(window.devicePixelRatio || 1, 1.5),
+  setScale: s => { dpr = s; renderer.setPixelRatio(s); composer.setPixelRatio(s); resize(); },
+  setGrass: q => { for (const L of GRASS_LAYERS) L.geo.instanceCount = Math.floor(L.count * q); },
+  setShadowEvery: n => { QUALITY.shadowEvery = n; },
+  setReflect: f => { QUALITY.reflect = f; },
+  msaaTargets: [composer.renderTarget1, composer.renderTarget2],
+});
 
 /* =====================================================================
    Forests: instanced conifers on the slopes, broadleaf in the valley
@@ -1845,7 +1857,7 @@ function step(dt, t){
   // keep the frame rate up by thinning grass on slower GPUs (stalls/hidden tabs ignored)
   const nowMs = performance.now(), raw = (nowMs - qLast)/1000;
   qLast = nowMs;
-  if (!RENDER && !document.hidden && raw < 0.25){ qAcc += raw; qN++; }
+  /* grass density is set by adaptive-quality.js */
   if (qN >= 90){
     const avg = qAcc/qN;
     qAcc = 0; qN = 0;

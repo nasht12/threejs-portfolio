@@ -28,6 +28,26 @@ portal into the live scene.
 - **Keyboard and screen reader first.** The list of works mirrors the ring (arrow keys turn it, Enter on the front card goes in). A live region announces where you are, focus moves into and back out of scenes, and `prefers-reduced-motion` is respected. An axe scan in CI holds it at zero WCAG A/AA violations.
 - **One store.** Selection, mode, quality tier and an interaction event log live in a single Zustand store. The URL (`#/work/…`, `#/scene/…`) follows it, so deep links and the Back button work.
 
+## Keeping the scenes smooth on any GPU
+
+The scenes were tuned on a discrete GPU. On integrated graphics (Intel UHD 770, 1280×720) the three painted
+landscapes measured 3–6 fps. `public/scenes/adaptive-quality.js`, wired in by `scripts/patch-scenes.mjs`, fixes that
+without touching how they look on a strong GPU:
+
+- **A quality ladder driven by measured frame times:** render scale, grass density (the ~570k blades are stored in random order, so drawing the first N thins the meadow evenly), MSAA, shadow-map refresh and reflection resolution. It steps down within seconds when frames run long, climbs back when there is headroom, and won't retry a rung that was just too slow.
+- **Terrain resolution by GPU class:** a quarter of the triangles on integrated GPUs. Profiling showed the 1.4M-triangle valley mesh, drawn for the view, the reflection and the shadow map, was the single biggest cost.
+- **The guest character is a file, not a 2.6 MB base64 block** at the top of every page, so scenes start building before it would have finished downloading.
+
+| Integrated GPU, 1280×720 | before | after |
+|---|---|---|
+| Merced River | 3.3 fps | 32 fps |
+| Isle of the Dead | 4.6 fps | 40 fps |
+| Fog Hollow | 5.7 fps | 30 fps |
+| Indigo Ridge | 20 fps | 55 fps |
+| Dents du Midi | 20 fps | 45 fps |
+
+On a discrete GPU the ladder climbs back to full resolution and full grass.
+
 ## Run it
 
 ```bash

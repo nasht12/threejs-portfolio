@@ -98,12 +98,18 @@ for (const id of ['merced-river', 'isle-of-the-dead', 'fog-hollow', 'indigo-ridg
     // The three painted landscapes share one engine that fetches its rock and ground scans after building the terrain.
     const engineAssets = ['merced-river', 'isle-of-the-dead', 'fog-hollow'].includes(id)
       ? ['tex/cliff_side_diff.jpg', 'tex/forest_ground_04_nor.jpg'].map(path => page.waitForResponse(r => r.url().endsWith(path) && r.ok(), { timeout: 240_000 }))
-      : [];
+      : id === 'rigging-bench'
+        ? [page.waitForResponse(r => r.url().endsWith('models/sable.glb') && r.ok(), { timeout: 120_000 })]
+        : [];
     await page.goto(`./scenes/${id}.html`, { waitUntil: 'load' });
     await Promise.all(engineAssets);
     await expect(page.locator('canvas').first()).toBeAttached({ timeout: 90_000 });
     await page.waitForLoadState('networkidle', { timeout: 90_000 });
     expect(failed).toEqual([]);
+    // the adaptive-quality controller is running (scripts/patch-scenes.mjs)
+    if (!['gulf-stream-study', 'rigging-bench'].includes(id)) {
+      await expect(page.locator('html')).toHaveAttribute('data-quality-rung', /^\d+\/\d+$/, { timeout: 60_000 });
+    }
   });
 }
 
