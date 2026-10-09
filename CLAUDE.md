@@ -60,6 +60,8 @@ Nothing raises it again. `?quality=low|high` pins it (demos, tests). Any new eff
 
 - Everything the canvas offers has a DOM equivalent: the list of works (roving tabindex, arrow keys, Home/End; Enter on the front card goes in) and the caption's "Enter the scene" button. The canvas wrapper is `aria-hidden`.
 - Location changes are announced through the polite live region in `Announcer`. Write a message for any new mode.
+- The details panel (title, description, "Enter the scene") is hidden until the front card is hovered; it also opens
+  whenever keyboard focus is on the list or the panel, and on touch screens or narrow windows it stays open at the bottom.
 - Opening a scene moves focus to its Back button; closing returns focus to where it was. Escape closes from inside the iframe too.
 - No single-character shortcuts. `prefers-reduced-motion` snaps the ring, skips the dive animation and keeps video off.
 - The axe test in `e2e/gallery.spec.ts` must stay at zero WCAG A/AA violations.

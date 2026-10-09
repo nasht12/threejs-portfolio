@@ -22,6 +22,8 @@ export interface GalleryState {
   qualitySetting: QualitySetting;
   autoQuality: Quality;
   showStats: boolean;
+  /** The details panel is open: the front card is hovered, or keyboard focus is on the list or the panel. */
+  details: boolean;
   reducedMotion: boolean;
   /** Append-only interaction log (capped). Useful for analytics, replay and tests. */
   events: GalleryEvent[];
@@ -36,6 +38,7 @@ export interface GalleryState {
   /** Called by the frame-budget monitor when frames run long. Ignored unless the setting is 'auto'. */
   declineQuality: () => void;
   toggleStats: () => void;
+  setDetails: (open: boolean) => void;
   setReducedMotion: (on: boolean) => void;
 }
 
@@ -86,6 +89,7 @@ export function createGalleryStore(init: Init = {}) {
       qualitySetting: 'auto',
       autoQuality: 'high',
       showStats: false,
+      details: false,
       reducedMotion: false,
       events: [],
       ...init,
@@ -127,6 +131,7 @@ export function createGalleryStore(init: Init = {}) {
         logged({ type: 'quality', detail: 'auto-low' }, { autoQuality: 'low' });
       },
       toggleStats: () => set(s => ({ showStats: !s.showStats })),
+      setDetails: open => { if (get().details !== open) set({ details: open }); },
       setReducedMotion: on => set({ reducedMotion: on }),
     };
   });

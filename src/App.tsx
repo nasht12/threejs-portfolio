@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useGallery } from './state/store';
-import { Announcer, Caption, Header, StatsPanel, WorkNav } from './ui/Overlay';
+import { Announcer, Caption, Header, Hint, StatsPanel, Tools, WorkNav } from './ui/Overlay';
 import { SceneViewer } from './ui/SceneViewer';
 import { useFocusReturn, useGalleryKeys, useReducedMotionSync, useRouteSync } from './ui/hooks';
 
@@ -27,10 +27,12 @@ export default function App() {
           {!inScene && <Suspense fallback={<p className="loader">Opening the gallery…</p>}><Carousel /></Suspense>}
         </div>
         <Header />
-        <main className="panel">
+        <WorkNav />
+        <main>
           <Caption />
         </main>
-        <WorkNav />
+        <Tools />
+        <Hint />
         <StatsPanel />
       </div>
       <Announcer />

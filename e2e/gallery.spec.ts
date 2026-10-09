@@ -71,11 +71,16 @@ test('keyboard: turn the ring, dive through the portal, come back', async ({ pag
 
 test('the browser Back button closes a scene', async ({ page }) => {
   await waitForHall(page);
+  const panel = page.locator('.panel');
+  await expect(panel).toHaveAttribute('data-open', 'false');
+  await page.waitForTimeout(1000); // let the ring settle so the card is where the pointer goes
+  await page.mouse.move(720, 450, { steps: 6 }); // over the front card
+  await expect(panel).toHaveAttribute('data-open', 'true');
   await page.getByRole('button', { name: 'Enter the scene' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Enter the scene' })).toBeVisible();
+  await expect(page.locator('.stage canvas')).toHaveCount(1);
 });
 
 test('deep links open straight into a scene', async ({ page }) => {

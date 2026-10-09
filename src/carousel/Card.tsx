@@ -9,6 +9,7 @@ import { asset } from '../config';
 import { useLoopTexture } from '../gallery/useLoopTexture';
 import { CARD, DEPTH, angleOf, backdropSize, radiusFor, windowCrop } from './layout';
 import { ease, transition } from './transition';
+import { hideDetailsSoon, showDetails } from '../ui/details';
 
 const DIM = new Color('#9c9c9c');
 const FULL = new Color('#ffffff');
@@ -99,14 +100,17 @@ export function Card({ work, index, count }: { work: Work; index: number; count:
     if (s.index === index) s.focus(index);
     else s.select(index);
   };
-  const cursor = (c: string) => (e: ThreeEvent<PointerEvent>) => {
-    (e.nativeEvent.target as HTMLElement | null)?.style.setProperty('cursor', c);
+  const hover = (on: boolean) => (e: ThreeEvent<PointerEvent>) => {
+    (e.nativeEvent.target as HTMLElement | null)?.style.setProperty('cursor', on ? 'pointer' : '');
+    if (useGallery.getState().index !== index) return;
+    if (on) showDetails();
+    else hideDetailsSoon();
   };
 
   return (
     <group position={[r * Math.sin(a), 0, r * Math.cos(a)]} rotation-y={a}>
       <group ref={group} scale={0.84}>
-        <mesh geometry={shape} onClick={onClick} onPointerOver={cursor('pointer')} onPointerOut={cursor('')}>
+        <mesh geometry={shape} onClick={onClick} onPointerOver={hover(true)} onPointerOut={hover(false)}>
           {front ? (
             <MeshPortalMaterial ref={portal as never} side={FrontSide} blur={0} resolution={256}>
               <Inside map={video ?? poster} aspect={work.aspect} />
@@ -117,20 +121,20 @@ export function Card({ work, index, count }: { work: Work; index: number; count:
         </mesh>
         <Text
           font={TITLE_FONT}
-          fontSize={0.17}
+          fontSize={0.13}
           lineHeight={0.95}
-          maxWidth={CARD.w - 0.3}
+          maxWidth={CARD.w - 0.22}
           anchorX="left"
           anchorY="top"
           color="#ffffff"
-          outlineWidth={0.004}
+          outlineWidth={0.003}
           outlineColor="#000000"
           outlineOpacity={0.25}
-          position={[-CARD.w / 2 + 0.14, CARD.h / 2 - 0.14, 0.01]}
+          position={[-CARD.w / 2 + 0.11, CARD.h / 2 - 0.11, 0.01]}
         >
           {work.title}
         </Text>
-        <Text font={SMALL_FONT} fontSize={0.075} anchorX="left" anchorY="bottom" color="#ffffff" fillOpacity={0.85} position={[-CARD.w / 2 + 0.14, -CARD.h / 2 + 0.12, 0.01]}>
+        <Text font={SMALL_FONT} fontSize={0.058} anchorX="left" anchorY="bottom" color="#ffffff" fillOpacity={0.85} position={[-CARD.w / 2 + 0.11, -CARD.h / 2 + 0.09, 0.01]}>
           {`${String(index + 1).padStart(2, '0')}  /${work.id}`}
         </Text>
       </group>

@@ -1,5 +1,5 @@
 /** World units are metres. Cards stand on a ring around the y axis, facing outward; the camera looks at the front of the ring. */
-export const CARD = { w: 1.7, h: 2.5, r: 0.12 } as const;
+export const CARD = { w: 1.3, h: 1.9, r: 0.1 } as const;
 /** How far behind each card its scene sits: the depth you see through the window, and fly into. */
 export const DEPTH = 3;
 /** Height of the backdrop inside each portal; its width follows the poster's aspect. */
@@ -17,7 +17,7 @@ export const step = (n: number) => TAU / n;
 export const angleOf = (i: number, n: number) => i * step(n);
 
 /** Ring radius that keeps a gap between neighbours however many cards there are. */
-export const radiusFor = (n: number) => Math.max(3.4, (n * (CARD.w + 0.55)) / TAU);
+export const radiusFor = (n: number) => Math.max(2.9, (n * (CARD.w + 0.5)) / TAU);
 
 /** The card nearest the front for a ring turned by `theta`. */
 export const nearestIndex = (theta: number, n: number) => wrap(Math.round(theta / step(n)), n);

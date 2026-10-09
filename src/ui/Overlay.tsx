@@ -2,25 +2,29 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useGallery } from '../state/store';
 import { statsSink } from '../perf/statsSink';
 import { SITE } from '../config';
+import { hideDetailsSoon, showDetails } from './details';
 
 export function Header() {
-  const showStats = useGallery(s => s.showStats);
-  const toggleStats = useGallery(s => s.toggleStats);
-
   return (
     <header className="bar">
-      <div className="brand">
-        <p className="title">Three.js Scenes</p>
-        <p className="hint" aria-hidden="true">
-          Drag, scroll or ← → to turn · click the front card to go in
-        </p>
-      </div>
-      <div className="tools">
-        <button type="button" className="chip" aria-pressed={showStats} onClick={toggleStats}>Frame stats</button>
-        <a className="chip" href={SITE.repo} target="_blank" rel="noopener">Source</a>
-      </div>
+      <p className="title">Three.js Scenes</p>
     </header>
   );
+}
+
+export function Tools() {
+  const showStats = useGallery(s => s.showStats);
+  const toggleStats = useGallery(s => s.toggleStats);
+  return (
+    <div className="tools">
+      <button type="button" className="chip" aria-pressed={showStats} onClick={toggleStats}>Frame stats</button>
+      <a className="chip" href={SITE.repo} target="_blank" rel="noopener">Source</a>
+    </div>
+  );
+}
+
+export function Hint() {
+  return <p className="hint" aria-hidden="true">Drag, scroll or ← → to turn · click the front card to go in</p>;
 }
 
 export function Caption() {
@@ -28,9 +32,18 @@ export function Caption() {
   const index = useGallery(s => s.index);
   const n = useGallery(s => s.works.length);
   const mode = useGallery(s => s.mode);
+  const open = useGallery(s => s.details);
   const { focus } = useGallery.getState();
 
   return (
+    <div
+      className="panel"
+      data-open={open}
+      onMouseEnter={showDetails}
+      onMouseLeave={() => hideDetailsSoon()}
+      onFocus={showDetails}
+      onBlur={() => hideDetailsSoon()}
+    >
     <section className="caption" aria-labelledby="cap-title">
       <p className="count">{index + 1} / {n}</p>
       <h1 id="cap-title">{work.title}</h1>
@@ -44,6 +57,7 @@ export function Caption() {
         <span className="size">Live scene {work.size}</span>
       </div>
     </section>
+    </div>
   );
 }
 
@@ -79,6 +93,8 @@ export function WorkNav() {
               tabIndex={i === index ? 0 : -1}
               aria-current={i === index ? 'true' : undefined}
               aria-describedby="works-help"
+              onFocus={showDetails}
+              onBlur={() => hideDetailsSoon()}
               onKeyDown={onKeyDown(i)}
               onClick={() => activate(i)}
             >

@@ -5,7 +5,7 @@ import { FrameBudget } from '../perf/FrameBudget';
 import { Loader } from '../gallery/Loader';
 import { Card } from './Card';
 import { Rig } from './Rig';
-import { CAM_DIST, CAM_Y, FOV, radiusFor } from './layout';
+import { CARD, CAM_DIST, CAM_Y, FOV, radiusFor } from './layout';
 import { startTransition } from './transition';
 
 /** Mounts once everything above it in the Suspense boundary has loaded, and asks for the first frame. */
@@ -15,6 +15,16 @@ function FirstFrame() {
   return null;
 }
 
+
+/** Publishes the front card's on-screen half width (--card-half) so the details panel can sit beside it. */
+function CardMetrics() {
+  const height = useThree(s => s.size.height);
+  useEffect(() => {
+    const pxPerMetre = height / (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360));
+    document.documentElement.style.setProperty('--card-half', `${Math.round((CARD.w / 2) * pxPerMetre)}px`);
+  }, [height]);
+  return null;
+}
 
 /**
  * The home page: a ring of portal cards. frameloop="demand" means nothing renders unless the
@@ -46,6 +56,7 @@ export default function Carousel() {
           <FirstFrame />
         </Suspense>
         <FrameBudget />
+        <CardMetrics />
       </Canvas>
       <Loader />
     </>
