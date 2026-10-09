@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGalleryStore, effectiveQuality, guessQuality, MAX_EVENTS } from './store';
+import { createGalleryStore, effectiveQuality, guessQuality, qualityFromQuery, MAX_EVENTS } from './store';
 import { parseHash, toHash } from './route';
 import { WORKS } from '../data/works';
 
@@ -81,6 +81,22 @@ describe('quality', () => {
     expect(guessQuality({ hardwareConcurrency: 16, deviceMemory: 4 })).toBe('low');
     expect(guessQuality({ hardwareConcurrency: 12, deviceMemory: 16 })).toBe('high');
     expect(guessQuality({})).toBe('high');
+  });
+
+  it('starts slow or metered connections on the light tier', () => {
+    const fast = { hardwareConcurrency: 12, deviceMemory: 16 };
+    expect(guessQuality({ ...fast, connection: { effectiveType: '4g', downlink: 20 } })).toBe('high');
+    expect(guessQuality({ ...fast, connection: { effectiveType: '3g' } })).toBe('low');
+    expect(guessQuality({ ...fast, connection: { effectiveType: 'slow-2g' } })).toBe('low');
+    expect(guessQuality({ ...fast, connection: { downlink: 0.8 } })).toBe('low');
+    expect(guessQuality({ ...fast, connection: { saveData: true } })).toBe('low');
+  });
+
+  it('reads a pinned tier from the query string', () => {
+    expect(qualityFromQuery('?quality=low')).toBe('low');
+    expect(qualityFromQuery('?quality=high')).toBe('high');
+    expect(qualityFromQuery('?quality=ultra')).toBe('auto');
+    expect(qualityFromQuery('')).toBe('auto');
   });
 });
 

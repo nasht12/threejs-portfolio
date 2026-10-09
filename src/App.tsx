@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useGallery } from './state/store';
-import { Announcer, Caption, Header, Hint, StatsPanel, WorkNav } from './ui/Overlay';
+import { Announcer, Caption, Header, StatsPanel, WorkNav } from './ui/Overlay';
 import { SceneViewer } from './ui/SceneViewer';
 import { useFocusReturn, useGalleryKeys, useReducedMotionSync, useRouteSync } from './ui/hooks';
 
@@ -31,7 +31,6 @@ export default function App() {
           <Caption />
         </main>
         <WorkNav />
-        <Hint />
         <StatsPanel />
       </div>
       <Announcer />

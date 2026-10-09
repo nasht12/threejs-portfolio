@@ -1,29 +1,22 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useGallery, type QualitySetting } from '../state/store';
+import { useGallery } from '../state/store';
 import { statsSink } from '../perf/statsSink';
 import { SITE } from '../config';
 
 export function Header() {
-  const setting = useGallery(s => s.qualitySetting);
-  const auto = useGallery(s => s.autoQuality);
-  const setQuality = useGallery(s => s.setQualitySetting);
+  const mode = useGallery(s => s.mode);
   const showStats = useGallery(s => s.showStats);
   const toggleStats = useGallery(s => s.toggleStats);
-  const options: [QualitySetting, string][] = [['auto', `Auto (${auto})`], ['high', 'High'], ['low', 'Chromebook']];
 
   return (
     <header className="bar">
-      <p className="brand"><strong>{SITE.owner}</strong> <span>Three.js work</span></p>
+      <div className="brand">
+        <p className="title">Three.js Scenes</p>
+        <p className="hint" aria-hidden="true">
+          {mode === 'focus' ? 'Click the picture again or press Enter to go in · Esc steps back' : 'Drag or ← → to walk · click a picture to step closer'}
+        </p>
+      </div>
       <div className="tools">
-        <fieldset className="seg">
-          <legend>Quality</legend>
-          {options.map(([value, label]) => (
-            <label key={value}>
-              <input type="radio" name="quality" value={value} checked={setting === value} onChange={() => setQuality(value)} />
-              <span>{label}</span>
-            </label>
-          ))}
-        </fieldset>
         <button type="button" className="chip" aria-pressed={showStats} onClick={toggleStats}>Frame stats</button>
         <a className="chip" href={SITE.repo} target="_blank" rel="noopener">Source</a>
       </div>
@@ -134,11 +127,3 @@ export function StatsPanel() {
   return <pre className="stats" ref={el => { statsSink.el = el; }} aria-label="Renderer statistics">measuring…</pre>;
 }
 
-export function Hint() {
-  const mode = useGallery(s => s.mode);
-  return (
-    <p className="hint" aria-hidden="true">
-      {mode === 'focus' ? 'Click the picture again or press Enter to go in · Esc steps back' : 'Drag or ← → to walk · click a picture to step closer'}
-    </p>
-  );
-}

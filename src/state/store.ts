@@ -43,11 +43,31 @@ export const wrap = (i: number, n: number) => ((i % n) + n) % n;
 export const effectiveQuality = (s: Pick<GalleryState, 'qualitySetting' | 'autoQuality'>): Quality =>
   s.qualitySetting === 'auto' ? s.autoQuality : s.qualitySetting;
 
-/** First guess before any frames are measured: small machines start on the light tier. */
-export function guessQuality(nav: { hardwareConcurrency?: number; deviceMemory?: number }): Quality {
+export interface DeviceHints {
+  hardwareConcurrency?: number;
+  deviceMemory?: number;
+  connection?: { effectiveType?: string; downlink?: number; saveData?: boolean };
+}
+
+/**
+ * First guess before anything is measured. Small machines and slow or metered connections start
+ * on the light tier (no preview video, no reflection pass). The load-time check and the frame-budget
+ * monitor can still lower it later; nothing raises it.
+ */
+export function guessQuality(nav: DeviceHints): Quality {
   if (nav.deviceMemory !== undefined && nav.deviceMemory <= 4) return 'low';
   if ((nav.hardwareConcurrency ?? 8) <= 4) return 'low';
+  const c = nav.connection;
+  if (c?.saveData) return 'low';
+  if (c?.effectiveType && /(^|-)(2g|3g)$/.test(c.effectiveType)) return 'low';
+  if (c?.downlink !== undefined && c.downlink > 0 && c.downlink < 1.5) return 'low';
   return 'high';
+}
+
+/** `?quality=low|high` pins the tier: for demos and tests. Anything else leaves it automatic. */
+export function qualityFromQuery(search: string): QualitySetting {
+  const q = new URLSearchParams(search).get('quality');
+  return q === 'low' || q === 'high' ? q : 'auto';
 }
 
 type Init = Partial<Pick<GalleryState, 'works' | 'index' | 'mode' | 'qualitySetting' | 'autoQuality' | 'reducedMotion'>>;
@@ -111,7 +131,11 @@ export function createGalleryStore(init: Init = {}) {
   });
 }
 
-const nav = typeof navigator === 'undefined' ? {} : (navigator as Navigator & { deviceMemory?: number });
+const nav: DeviceHints = typeof navigator === 'undefined' ? {} : (navigator as unknown as DeviceHints);
 const reduced = typeof matchMedia === 'undefined' ? false : matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export const useGallery = createGalleryStore({ autoQuality: guessQuality(nav), reducedMotion: reduced });
+export const useGallery = createGalleryStore({
+  autoQuality: guessQuality(nav),
+  qualitySetting: typeof location === 'undefined' ? 'auto' : qualityFromQuery(location.search),
+  reducedMotion: reduced,
+});

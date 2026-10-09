@@ -1,4 +1,4 @@
-# Three.js work
+# Three.js Scenes
 
 **Live: https://nasht12.github.io/threejs-portfolio/**
 
@@ -21,7 +21,7 @@ a frame to see it move, then go in to explore the live scene.
 
 - **Stack:** React 19, React Three Fiber 9, drei 10, three r186, Zustand 5, Vite 8, TypeScript 7, Vitest, Playwright.
 - **Renders on demand.** With `frameloop="demand"` the GPU only works while something moves: the camera, a playing preview, a state change. A visitor reading a caption costs nothing.
-- **Holds a frame budget.** A monitor measures active frame times (idle gaps excluded) and drops to a light tier when the median passes 22 ms. That tier has DPR 1, no reflection pass, no spotlights and no video. You can also pick the **Chromebook** tier yourself, and **Frame stats** shows draw calls, triangles, GPU resources and frame time live.
+- **Holds a frame budget.** A monitor measures active frame times (idle gaps excluded) and drops to a light tier when the median passes 22 ms. That tier has DPR 1, no reflection pass, no spotlights and no video. The tier is chosen silently: small machines, slow or metered connections (Network Information API) and a slow first load start light. `?quality=low` pins it for demos, and **Frame stats** shows draw calls, triangles, GPU resources and frame time live.
 - **Cleans up after itself.** Preview videos exist only while you stand at a frame: their decoder and texture are disposed when you leave. The gallery's WebGL context is released while a scene is open, so only one context exists at a time.
 - **Keyboard and screen reader first.** The list of works mirrors the wall (arrow keys, Home/End; Enter steps closer, Enter again goes in). A live region announces where you are, focus moves into and back out of scenes, and `prefers-reduced-motion` is respected. An axe scan in CI holds it at zero WCAG A/AA violations.
 - **One store.** Selection, mode, quality tier and an interaction event log live in a single Zustand store. The URL (`#/work/…`, `#/scene/…`) follows it, so deep links and the Back button work.

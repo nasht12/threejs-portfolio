@@ -47,9 +47,10 @@ Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the s
 | Picture lights | one `spotLight` per frame | additive light-pool planes only |
 | Preview video | plays when you step up to a frame | posters only |
 
-Auto starts low on machines with ≤ 4 cores or ≤ 4 GB of memory, and the frame-budget monitor drops to low when the
-median active frame time over 90 frames exceeds 22 ms. A visitor's explicit choice is never overridden. Any new
-effect needs a low-tier answer before it ships.
+The tier is decided behind the scenes; there is no visible control. It starts low on machines with ≤ 4 cores or
+≤ 4 GB of memory, on slow or metered connections (`navigator.connection`: 2g/3g, downlink under 1.5 Mbps, Save-Data),
+drops to low if the first load takes over 6 s, or if the median active frame time over 90 frames exceeds 22 ms.
+Nothing raises it again. `?quality=low|high` pins it (demos, tests). Any new effect needs a low-tier answer before it ships.
 
 ## Accessibility (a requirement, not polish)
 

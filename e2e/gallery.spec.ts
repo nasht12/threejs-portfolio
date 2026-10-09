@@ -101,9 +101,9 @@ for (const id of ['merced-river', 'isle-of-the-dead', 'fog-hollow', 'indigo-ridg
   });
 }
 
-test('Chromebook tier drops the reflective floor and the device pixel ratio', async ({ page }) => {
-  await waitForHall(page);
-  await page.getByRole('radio', { name: 'Chromebook' }).check();
+test('the light tier drops the device pixel ratio', async ({ page }) => {
+  await page.goto('./?quality=low');
+  await expect(page.getByText(/Hanging the pictures/)).toHaveCount(0, { timeout: 45_000 });
   await page.getByRole('button', { name: 'Frame stats' }).click();
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('.stats')).toContainText('dpr     1.00 · tier low');
