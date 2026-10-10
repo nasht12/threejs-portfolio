@@ -110,17 +110,17 @@ export const WORKS: readonly Work[] = [
   {
     id: 'gulf-stream-study',
     title: 'Gulf Stream Study',
-    after: 'After Winslow Homer, 1899',
-    blurb: 'Mast broken, cane spilled across the deck, sharks working the wake. A sail stands on the horizon.',
+    after: 'The sea of Winslow Homer’s Gulf Stream, 1899',
+    blurb: 'Only the water: turquoise swell running before the trade wind, the sun showing through every crest.',
     tech: [
-      'One wave formula on the CPU and the GPU, so the boat and sharks ride the surface they are drawn on',
-      'Procedural sky and exponential fog',
-      'A single 20 KB file',
+      'Twenty-four Gerstner waves: the long swell moves the mesh, the short chop is shaded per pixel',
+      'Waves fade out as they shrink below a few pixels and become highlight roughness, so the far sea never sparkles',
+      'Sky reflection, light through the crests and foam in one shader, in a single small file',
     ],
     poster: 'media/gulf-stream-study.jpg',
     aspect: 16 / 9,
     scene: 'scenes/gulf-stream-study.html',
-    controls: 'Watch, or drag to look around',
+    controls: 'Drag to look around',
     size: '≈ 1 MB',
   },
   {

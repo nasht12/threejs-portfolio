@@ -2,12 +2,11 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Work+Sans:wght@400;500&display=swap">
 <style>
   :root{
-    --ink:#eef1ea;
-    --ink-dim:#c3cdc3;
-    --bg:#0a1e20;
-    --bg-deep:#040f11;
-    --accent:#dd9a5c;
-    --line:rgba(238,241,234,0.16);
+    --ink:#f4f8f6;
+    --ink-dim:#d6e6e4;
+    --bg:#0d4a55;
+    --bg-deep:#06262c;
+    --accent:#ffd9a0;
     color-scheme: dark;
   }
   html,body{height:100%;margin:0;background:var(--bg-deep);}
@@ -16,9 +15,11 @@
     width:100%;
     height:100dvh;
     overflow:hidden;
-    background:radial-gradient(ellipse 120% 90% at 50% 28%, #143c3c 0%, var(--bg-deep) 72%);
+    background:linear-gradient(#5d9ccc 0%, #cfe6ee 52%, var(--bg) 54%, var(--bg-deep) 100%);
     touch-action:none;
+    cursor:grab;
   }
+  #app.dragging{cursor:grabbing;}
   canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;}
   .hud{
     position:absolute;inset:0;
@@ -30,28 +31,24 @@
   .hud-top{display:flex;flex-direction:column;gap:8px;opacity:0;transform:translateY(-8px);animation:hudIn 1.6s cubic-bezier(.2,.7,.2,1) .7s forwards;}
   .eyebrow{
     font-family:'Work Sans',sans-serif;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
-    color:var(--accent);
+    color:var(--accent);text-shadow:0 1px 12px rgba(0,30,40,.45);
   }
   h1{
     font-family:'Fraunces',Georgia,serif;font-weight:560;font-style:normal;
     font-size:clamp(28px,5.4vw,52px);line-height:1.02;margin:0;
     color:var(--ink);text-wrap:balance;
-    text-shadow:0 2px 30px rgba(0,0,0,.5);
+    text-shadow:0 2px 30px rgba(0,30,40,.45);
   }
   .hud-bottom{max-width:44ch;opacity:0;transform:translateY(8px);animation:hudIn 1.6s cubic-bezier(.2,.7,.2,1) 1.1s forwards;}
   .caption{
     font-family:'Work Sans',sans-serif;font-size:13.5px;line-height:1.65;
-    color:var(--ink-dim);margin:0;
+    color:var(--ink-dim);margin:0;text-shadow:0 1px 14px rgba(0,30,40,.6);
   }
   .caption em{color:var(--ink);font-style:italic;}
   @keyframes hudIn{to{opacity:1;transform:none;}}
   .vignette{
     position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(ellipse 90% 80% at 50% 46%, transparent 45%, rgba(2,10,11,.55) 100%);
-  }
-  .grain{
-    position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.05;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background:radial-gradient(ellipse 95% 85% at 50% 45%, transparent 55%, rgba(2,24,30,.38) 100%);
   }
   #loader{
     position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
@@ -73,16 +70,15 @@
 </style>
 
 <div id="app">
-  <canvas id="scene"></canvas>
+  <canvas id="scene" aria-label="Open turquoise sea under a clear sky. Drag to look around."></canvas>
   <div class="vignette"></div>
-  <div class="grain"></div>
   <div class="hud">
     <div class="hud-top">
-      <span class="eyebrow">After Winslow Homer, 1899</span>
+      <span class="eyebrow">The sea of Winslow Homer&rsquo;s Gulf Stream, 1899</span>
       <h1>The Gulf&nbsp;Stream</h1>
     </div>
     <div class="hud-bottom">
-      <p class="caption">Mast broken, cane spilled across the deck, <em>sharks working the wake</em> &mdash; a sail stands on the horizon, closer to the storm than to him.</p>
+      <p class="caption">Only the water: <em>turquoise swell</em> running before the trade wind, the sun showing through every crest.</p>
     </div>
   </div>
   <div id="loader">
@@ -99,37 +95,48 @@ import * as THREE from 'three';
 
 try {
 
+const app = document.getElementById('app');
 const canvas = document.getElementById('scene');
 const loaderEl = document.getElementById('loader');
-const errEl = document.getElementById('errMsg');
-const ringEl = loaderEl.querySelector('.ring');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------------------------------------------------------------
-   Shared wave field — identical formula on the CPU (object
-   placement) and GPU (ocean displacement) so props sit on the
-   surface they're rendered on.
+   The sea: a sum of Gerstner waves, generated once from a seed.
+   The first NV (the long swell) move the mesh; all NW shade it,
+   per pixel, so the short chop stays crisp on a modest grid.
+   Each wave fades out as it shrinks below a few pixels, and the
+   slope it carried becomes highlight roughness — so the far sea
+   reads as a soft sun path instead of sparkling.
 ----------------------------------------------------------------*/
-function waveHeight(x, z, t){
-  return (
-    1.15 * Math.sin(x*0.015 + t*0.22) +
-    0.72  * Math.cos(z*0.018 - t*0.17) +
-    0.9  * Math.sin(x*0.055 + z*0.020 + t*0.55) +
-    0.5  * Math.sin(x*0.12  - z*0.09  + t*0.95) +
-    0.26 * Math.sin(x*0.27  + z*0.24  + t*1.6)
-  );
+const NV = 8, NW = 24;
+function mulberry32(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rand = mulberry32(1899);
+const WIND = Math.PI*0.5 - 0.35;                 // swell runs toward the viewer, a little from the left
+const waveA = [], waveB = [];                    // (dir.x, dir.z, k, amplitude) · (omega, phase, Q, 0)
+for (let i = 0; i < NW; i++){
+  const L = 62 * Math.pow(0.78, i);              // 62 m swell down to ~0.2 m chop
+  const swell = i < NV;
+  const A = L * (swell ? 0.0105 : 0.0075);
+  const spread = 0.45 + 1.7 * i / NW;             // short waves come from more directions
+  const ang = WIND + (rand()*2 - 1) * spread;
+  const k = 2*Math.PI / L;
+  const Q = swell ? 0.72 / (k*A*NV) : 0.28 / (k*A*(NW - NV));   // sum of Q·k·A stays below 1: no looping crests
+  waveA.push(new THREE.Vector4(Math.cos(ang), Math.sin(ang), k, A));
+  waveB.push(new THREE.Vector4(Math.sqrt(9.81*k), rand()*Math.PI*2, Q, 0));
 }
-const WAVE_GLSL = `
-  float waveHeight(vec2 p, float t){
-    return
-      1.15 * sin(p.x*0.015 + t*0.22) +
-      0.72  * cos(p.y*0.018 - t*0.17) +
-      0.9  * sin(p.x*0.055 + p.y*0.020 + t*0.55) +
-      0.5  * sin(p.x*0.12  - p.y*0.09  + t*0.95) +
-      0.26 * sin(p.x*0.27  + p.y*0.24  + t*1.6);
+// height of the swell at (x, z) — the same waves the vertex shader moves the mesh with
+function swellHeight(x, z, t){
+  let h = 0;
+  for (let i = 0; i < NV; i++){
+    const a = waveA[i], b = waveB[i];
+    h += a.w * Math.sin(a.z*(a.x*x + a.y*z) - b.x*t + b.y);
   }
-`;
-const NOISE_GLSL = `
+  return h;
+}
+
+const SKY_GLSL = `
+  uniform vec3 uZenith, uHorizon, uSunDir, uSunColor, uCloud;
+  uniform float uTime;
   float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3,289.1)))*43758.5453); }
   float vnoise(vec2 p){
     vec2 i=floor(p), f=fract(p);
@@ -137,24 +144,32 @@ const NOISE_GLSL = `
     vec2 u=f*f*(3.0-2.0*f);
     return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
   }
+  float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p*2.03+17.1; a*=0.5; } return s; }
+  vec3 skyColor(vec3 d){
+    float y = max(d.y, 0.0);
+    vec3 col = mix(uHorizon, uZenith, pow(y, 0.4));
+    float sd = max(dot(d, uSunDir), 0.0);
+    col += uSunColor * (pow(sd, 6.0)*0.10 + pow(sd, 90.0)*0.35);
+    // fair-weather cumulus sitting low over the sea
+    vec2 cp = d.xz / (y + 0.09);
+    float c = fbm(cp*0.55 + vec2(uTime*0.006, 0.0));
+    c = smoothstep(0.56, 0.78, c) * smoothstep(0.0, 0.05, y) * (1.0 - smoothstep(0.22, 0.55, y));
+    vec3 cloud = uCloud * (0.8 + 0.35*pow(sd, 3.0));
+    return mix(col, cloud, c*0.9);
+  }
 `;
 
 /* ---------------------------------------------------------------
    Renderer / scene / camera
 ----------------------------------------------------------------*/
 const scene = new THREE.Scene();
-const fogColor = new THREE.Color(0x5a7a72);
-scene.fog = new THREE.FogExp2(fogColor, 0.0027);
-
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.75));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.22;
-renderer.setClearColor(0x3a5854, 1);
+renderer.toneMappingExposure = 1.0;
 
-const camera = new THREE.PerspectiveCamera(44, window.innerWidth/window.innerHeight, 0.5, 900);
-
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth/window.innerHeight, 0.3, 3200);
 function resize(){
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
@@ -163,491 +178,243 @@ function resize(){
 }
 window.addEventListener('resize', resize);
 
-/* ---------------------------------------------------------------
-   Lights
-----------------------------------------------------------------*/
-const hemi = new THREE.HemisphereLight(0xe3d3a8, 0x123a38, 1.05);
-scene.add(hemi);
-
-const sunDirVec = new THREE.Vector3(-60,45,-25).normalize();
-const sun = new THREE.DirectionalLight(0xffdfb0, 1.85);
-sun.position.copy(sunDirVec).multiplyScalar(100);
-scene.add(sun);
-
-const fill = new THREE.DirectionalLight(0x6f97a0, 0.3);
-fill.position.set(40,20,60);
-scene.add(fill);
+const sunDir = new THREE.Vector3(-0.42, 0.52, -0.74).normalize();   // ahead and to the left, mid-morning
+const skyUniforms = {
+  uTime:{value:0},
+  uZenith:{value:new THREE.Color(0x1758a8)},
+  uHorizon:{value:new THREE.Color(0x9ccbe0)},
+  uSunDir:{value:sunDir},
+  uSunColor:{value:new THREE.Color(0xfff1d6).multiplyScalar(1.0)},
+  uCloud:{value:new THREE.Color(0xf6f8f8)},
+};
 
 /* ---------------------------------------------------------------
    Sky dome
 ----------------------------------------------------------------*/
 const skyMat = new THREE.ShaderMaterial({
-  side: THREE.BackSide,
-  uniforms:{
-    uTime:{value:0},
-    uTop:{value:new THREE.Color(0x6d7d82)},
-    uHorizon:{value:new THREE.Color(0xe4cfa0)},
-    uStorm:{value:new THREE.Color(0x8f8c87)}
-  },
+  side: THREE.BackSide, depthWrite:false,
+  uniforms: skyUniforms,
   vertexShader:`
-    varying vec3 vPos;
+    varying vec3 vDir;
     void main(){
-      vPos = position;
+      vDir = position;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
     }
   `,
   fragmentShader:`
-    varying vec3 vPos;
-    uniform float uTime;
-    uniform vec3 uTop, uHorizon, uStorm;
-    ${NOISE_GLSL}
+    varying vec3 vDir;
+    ${SKY_GLSL}
     void main(){
-      vec3 dir = normalize(vPos);
-      float t = clamp(dir.y*0.55+0.55, 0.0, 1.0);
-      vec3 col = mix(uHorizon, uTop, t);
-      float stormSide = smoothstep(-0.15, 0.85, dir.x);
-      float cloud = vnoise(dir.xz*2.3 + vec2(uTime*0.01,0.0))*0.6 + vnoise(dir.xz*5.2 - vec2(uTime*0.02,0.0))*0.4;
-      cloud = smoothstep(0.34,0.82,cloud) * smoothstep(0.05,0.65,1.0-t);
-      col = mix(col, uStorm, cloud*(0.2+0.42*stormSide));
-      gl_FragColor = vec4(col,1.0);
+      vec3 d = normalize(vDir);
+      vec3 col = skyColor(d);
+      col += uSunColor * smoothstep(0.99955, 0.99975, dot(d, uSunDir)) * 18.0;   // the disc
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
     }
   `
 });
-const sky = new THREE.Mesh(new THREE.SphereGeometry(560, 32, 20), skyMat);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(2800, 48, 24), skyMat);
+sky.renderOrder = -1;
+sky.frustumCulled = false;
 scene.add(sky);
 
 /* ---------------------------------------------------------------
-   Ocean
+   Ocean grid: dense under the viewer, coarse toward the horizon.
+   aSpacing (metres between vertices) lets the vertex shader drop
+   swell it can no longer sample, instead of letting it swim.
 ----------------------------------------------------------------*/
-const oceanGeo = new THREE.PlaneGeometry(480, 480, 180, 180);
-oceanGeo.rotateX(-Math.PI/2);
+function buildOceanGrid(N, R){
+  const map = u => R * u * (0.06 + 0.94*u*u);
+  const step = u => R * (0.06 + 2.82*u*u) * (2/N);
+  const pos = new Float32Array((N+1)*(N+1)*3), spacing = new Float32Array((N+1)*(N+1));
+  let v = 0;
+  for (let j = 0; j <= N; j++){
+    const uz = j/N*2 - 1;
+    for (let i = 0; i <= N; i++){
+      const ux = i/N*2 - 1;
+      pos[v*3] = map(ux); pos[v*3+1] = 0; pos[v*3+2] = map(uz);
+      spacing[v] = Math.max(step(ux), step(uz));
+      v++;
+    }
+  }
+  const idx = new Uint32Array(N*N*6);
+  let k = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++){
+    const a = j*(N+1) + i, b = a + 1, c = a + N + 1, d = c + 1;
+    idx[k++] = a; idx[k++] = c; idx[k++] = b;
+    idx[k++] = b; idx[k++] = c; idx[k++] = d;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSpacing', new THREE.BufferAttribute(spacing, 1));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  return g;
+}
+
+const WAVES_GLSL = `
+  #define NV ${NV}
+  #define NW ${NW}
+  uniform vec4 uWaveA[NW];
+  uniform vec4 uWaveB[NW];
+`;
 
 const oceanMat = new THREE.ShaderMaterial({
   uniforms:{
-    uTime:{value:0},
-    uDeep:{value:new THREE.Color(0x0e3f3d)},
-    uMid:{value:new THREE.Color(0x2f8f7d)},
-    uCrest:{value:new THREE.Color(0x86ceb4)},
-    uFoam:{value:new THREE.Color(0xe9f2e8)},
-    uSunDir:{value:sunDirVec},
-    uSunColor:{value:new THREE.Color(0xffe7bd)},
-    uFogColor:{value:fogColor},
-    uFogDensity:{value:0.0027},
-    uCameraPos:{value:camera.position}
+    ...skyUniforms,
+    uWaveA:{value:waveA},
+    uWaveB:{value:waveB},
+    uDeep:{value:new THREE.Color(0x04505e)},
+    uScatter:{value:new THREE.Color(0x13d1c0)},
+    uFoam:{value:new THREE.Color(0xf2f7f5)},
+    uCameraPos:{value:camera.position},
   },
   vertexShader:`
+    ${WAVES_GLSL}
     uniform float uTime;
-    varying vec3 vWorldPos;
-    varying vec3 vNormalW;
+    attribute float aSpacing;
+    varying vec2 vGrid;
+    varying vec3 vWorld;
     varying float vHeight;
-    ${WAVE_GLSL}
     void main(){
-      vec3 pos = position;
-      vec2 p = pos.xz;
-      float h = waveHeight(p, uTime);
-      pos.y += h;
-
-      float eps = 1.2;
-      float hX = waveHeight(p+vec2(eps,0.0), uTime);
-      float hZ = waveHeight(p+vec2(0.0,eps), uTime);
-      vec3 tangentX = normalize(vec3(eps, hX-h, 0.0));
-      vec3 tangentZ = normalize(vec3(0.0, hZ-h, eps));
-      vec3 n = normalize(cross(tangentZ, tangentX));
-
-      vWorldPos = (modelMatrix*vec4(pos,1.0)).xyz;
-      vNormalW = normalize(mat3(modelMatrix)*n);
-      vHeight = h;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
+      vec2 p = position.xz;
+      vec3 d = vec3(0.0);
+      for (int i = 0; i < NV; i++){
+        vec4 a = uWaveA[i], b = uWaveB[i];
+        float A = a.w * smoothstep(3.0, 6.0, 6.2831853 / a.z / aSpacing);
+        float th = a.z * dot(a.xy, p) - b.x*uTime + b.y;
+        d.xz += b.z * A * a.xy * cos(th);
+        d.y  += A * sin(th);
+      }
+      vec3 pos = vec3(p.x + d.x, d.y, p.y + d.z);
+      vGrid = p; vWorld = pos; vHeight = d.y;
+      gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
     }
   `,
   fragmentShader:`
-    uniform vec3 uDeep,uMid,uCrest,uFoam,uSunDir,uSunColor,uFogColor;
-    uniform float uFogDensity;
-    uniform vec3 uCameraPos;
-    varying vec3 vWorldPos;
-    varying vec3 vNormalW;
+    ${WAVES_GLSL}
+    ${SKY_GLSL}
+    uniform vec3 uDeep, uScatter, uFoam, uCameraPos;
+    varying vec2 vGrid;
+    varying vec3 vWorld;
     varying float vHeight;
-    ${NOISE_GLSL}
     void main(){
-      vec3 N = normalize(vNormalW);
-      vec3 V = normalize(uCameraPos - vWorldPos);
-      vec3 L = normalize(uSunDir);
+      vec2 p = vGrid;
+      float fp = max(length(dFdx(p)), length(dFdy(p)));    // metres per pixel here
 
-      float heightT = clamp((vHeight+1.4)/3.2, 0.0, 1.0);
-      vec3 base = mix(uDeep, uMid, smoothstep(0.15,0.65,heightT));
-      base = mix(base, uCrest, smoothstep(0.6,0.95,heightT));
+      vec3 n = vec3(0.0, 1.0, 0.0);
+      float J = 1.0;            // surface compression from the swell: low = a crest about to break
+      float lost = 0.0;         // slope variance of the waves too small to draw here
+      // the chop rides a slow, wandering offset so its crests don't line up into ripples
+      vec2 warp = (vec2(vnoise(p*0.045), vnoise(p*0.045 + 31.7)) - 0.5) * 9.0;
+      for (int i = 0; i < NW; i++){
+        vec4 a = uWaveA[i], b = uWaveB[i];
+        float L = 6.2831853 / a.z;
+        float w = smoothstep(2.0*fp, 6.0*fp, L);
+        float kA = a.z * a.w;
+        vec2 q = i < NV ? p : p + warp;
+        float th = a.z * dot(a.xy, q) - b.x*uTime + b.y;
+        float c = cos(th), s = sin(th);
+        n.xz -= a.xy * kA * c * w;
+        n.y  -= b.z * kA * s * w;
+        if (i < NV) J -= b.z * kA * s;
+        lost += (1.0 - w) * kA * kA * 0.5;
+      }
+      n.y = max(n.y, 0.2);
+      n = normalize(n);
 
-      float fresnel = pow(1.0-max(dot(N,V),0.0), 3.0);
-      float diff = max(dot(N,L),0.0);
-      vec3 col = base*(0.62+0.66*diff) + uSunColor*fresnel*0.45;
+      vec3 toCam = uCameraPos - vWorld;
+      float dist = length(toCam);
+      vec3 V = toCam / dist;
+      vec3 L = uSunDir;
+      float NV_ = max(dot(n, V), 0.0);
 
-      vec3 H = normalize(L+V);
-      float spec = pow(max(dot(N,H),0.0), 60.0);
-      col += uSunColor*spec*0.7;
+      // reflection: the sky, with Fresnel
+      vec3 R = reflect(-V, n);
+      R.y = abs(R.y);
+      float F = 0.02 + 0.98 * pow(1.0 - NV_, 5.0);
+      vec3 refl = skyColor(R);
 
-      float foamN = vnoise(vWorldPos.xz*0.35 + vec2(0.0,-vHeight*2.0));
-      float foamMask = smoothstep(0.72,0.95,heightT) * smoothstep(0.35,0.7,foamN);
-      col = mix(col, uFoam, foamMask*0.85);
+      // body: dark turquoise lit from inside, glowing where the sun shines through thin crests
+      float crest = clamp(vHeight * 0.9 + 0.35, 0.0, 1.6);
+      float through = pow(max(dot(L, -V) * 0.5 + 0.5, 0.0), 4.0) * pow(0.5 - 0.5*dot(L, n), 2.0);
+      float facing  = pow(NV_, 2.0);
+      vec3 body = uDeep * (0.55 + 0.45*max(dot(n, L), 0.0))
+                + uScatter * uSunColor * (0.55*facing + 2.2*crest*through + 0.18*max(dot(n,L),0.0));
 
-      float dist = length(uCameraPos - vWorldPos);
-      float fog = 1.0 - exp(-uFogDensity*uFogDensity*dist*dist);
-      col = mix(col, uFogColor, clamp(fog,0.0,1.0));
+      // sun glitter: a Gaussian slope lobe, widened by the slope we stopped drawing
+      vec3 H = normalize(L + V);
+      float nh = max(dot(n, H), 1e-3);
+      float s2 = 0.0028 + lost;
+      float tan2 = (1.0 - nh*nh) / (nh*nh);
+      float D = exp(-tan2 / (2.0*s2)) / (6.2831853 * s2 * nh*nh*nh*nh);
+      float Fs = 0.02 + 0.98 * pow(1.0 - max(dot(H, V), 0.0), 5.0);
+      vec3 spec = uSunColor * D * Fs * max(dot(n, L), 0.0) / (4.0 * max(NV_, 0.15)) * 1.3;
 
-      gl_FragColor = vec4(col,1.0);
+      vec3 col = mix(body, refl, F) + spec;
+
+      // foam where the swell pinches, broken up by drifting noise; detail fades with distance
+      float fn = fbm(p*0.45 + vec2(uTime*0.05, -uTime*0.09));
+      fn = mix(fn, 0.5, smoothstep(0.08, 0.6, fp));
+      float foam = smoothstep(0.42, 0.18, J + (fn - 0.5)*0.35);
+      foam *= 0.25 + 0.75*smoothstep(0.3, 0.75, fbm(p*1.7 - vec2(uTime*0.12, 0.0)));
+      col = mix(col, uFoam * (0.7 + 0.5*max(dot(n,L),0.0)), clamp(foam, 0.0, 1.0) * 0.85);
+
+      // aerial perspective into the horizon colour of the sky behind it, so the sea's edge disappears
+      // (at the horizon the sky has no cloud, so skip the noise: just its colour and the sun's glow)
+      float sh = max(dot(normalize(vec3(-V.x, 0.0, -V.z)), uSunDir), 0.0);
+      vec3 hz = uHorizon + uSunColor * (pow(sh, 6.0)*0.10 + pow(sh, 90.0)*0.35);
+      float fog = max(1.0 - exp(-dist * 0.0011), smoothstep(1050.0, 1450.0, dist));
+      col = mix(col, hz, clamp(fog, 0.0, 1.0));
+
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
     }
   `
 });
-const ocean = new THREE.Mesh(oceanGeo, oceanMat);
+const ocean = new THREE.Mesh(buildOceanGrid(320, 1500), oceanMat);
+ocean.frustumCulled = false;
 scene.add(ocean);
 
 /* ---------------------------------------------------------------
-   Boat — lofted low hull, mast, rigging, cargo, cane, figure
+   Drag to look; the view drifts and rides the swell on its own
 ----------------------------------------------------------------*/
-function buildHull(){
-  const shape = new THREE.Shape();
-  const pts = [
-    [6.5,0], [4.0,1.15], [1.0,1.65], [-2.5,1.55], [-5.2,1.05], [-6.2,0.55],
-    [-6.2,-0.55], [-5.2,-1.05], [-2.5,-1.55], [1.0,-1.65], [4.0,-1.15]
-  ];
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (let i=1;i<pts.length;i++) shape.lineTo(pts[i][0], pts[i][1]);
-  shape.closePath();
-
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: 1.4, bevelEnabled:true, bevelThickness:0.1, bevelSize:0.1, bevelSegments:2, curveSegments:1
-  });
-  geo.rotateX(Math.PI/2);
-  const mat = new THREE.MeshStandardMaterial({ color:0x6f4327, roughness:0.85, metalness:0.02, side:THREE.DoubleSide });
-  return new THREE.Mesh(geo, mat);
-}
-
-function makeFin(height, length){
-  const shape = new THREE.Shape();
-  shape.moveTo(0,0);
-  shape.quadraticCurveTo(length*0.25, height*0.75, length*0.42, height);
-  shape.quadraticCurveTo(length*0.7, height*0.4, length*0.95, height*0.12);
-  shape.quadraticCurveTo(length*0.5, height*0.05, 0.14, 0);
-  shape.closePath();
-  const geo = new THREE.ExtrudeGeometry(shape, { depth:0.05, bevelEnabled:false, curveSegments:6 });
-  geo.translate(-length*0.25, 0, -0.025);
-  const mat = new THREE.MeshStandardMaterial({ color:0x232a2d, roughness:0.55, side:THREE.DoubleSide });
-  return new THREE.Mesh(geo, mat);
-}
-
-function buildShark(){
-  const g = new THREE.Group();
-  const dorsal = makeFin(1.0, 1.05);
-  g.add(dorsal);
-  const tail = makeFin(0.55, 0.6);
-  tail.position.set(-1.9, 0, 0.1);
-  tail.rotation.z = 0.35;
-  tail.rotation.y = 0.5;
-  g.add(tail);
-  return g;
-}
-
-function buildFigure(){
-  const skin = 0x5b3a22, cloth = 0xe9ddb8;
-  const group = new THREE.Group();
-
-  const torsoG = new THREE.Group();
-  torsoG.rotation.z = 1.18;
-  group.add(torsoG);
-
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.32,1.0,4,10), new THREE.MeshStandardMaterial({color:skin, roughness:0.82}));
-  torso.position.y = -0.66;
-  torsoG.add(torso);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22,14,12), new THREE.MeshStandardMaterial({color:skin, roughness:0.75}));
-  head.position.y = -1.42;
-  torsoG.add(head);
-
-  for (const side of [1,-1]){
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1,0.8,4,8), new THREE.MeshStandardMaterial({color:skin, roughness:0.82}));
-    arm.position.set(0, -0.7, side*0.4);
-    arm.rotation.x = side*0.18;
-    torsoG.add(arm);
-  }
-
-  const hip = new THREE.Group();
-  hip.position.y = -1.22;
-  torsoG.add(hip);
-
-  const thighA = new THREE.Group();
-  thighA.rotation.z = -1.55;
-  hip.add(thighA);
-  const thighAM = new THREE.Mesh(new THREE.CapsuleGeometry(0.145,0.72,4,8), new THREE.MeshStandardMaterial({color:cloth, roughness:0.9}));
-  thighAM.position.y = -0.5;
-  thighA.add(thighAM);
-  const shinA = new THREE.Group();
-  shinA.position.y = -0.98;
-  shinA.rotation.z = 1.35;
-  thighA.add(shinA);
-  const shinAM = new THREE.Mesh(new THREE.CapsuleGeometry(0.12,0.68,4,8), new THREE.MeshStandardMaterial({color:skin, roughness:0.82}));
-  shinAM.position.y = -0.48;
-  shinA.add(shinAM);
-
-  const thighB = new THREE.Group();
-  thighB.rotation.z = -1.68;
-  hip.add(thighB);
-  const thighBM = new THREE.Mesh(new THREE.CapsuleGeometry(0.145,0.78,4,8), new THREE.MeshStandardMaterial({color:cloth, roughness:0.9}));
-  thighBM.position.y = -0.53;
-  thighB.add(thighBM);
-  const shinB = new THREE.Group();
-  shinB.position.y = -1.05;
-  shinB.rotation.z = 0.1;
-  thighB.add(shinB);
-  const shinBM = new THREE.Mesh(new THREE.CapsuleGeometry(0.11,0.82,4,8), new THREE.MeshStandardMaterial({color:skin, roughness:0.82}));
-  shinBM.position.y = -0.52;
-  shinB.add(shinBM);
-
-  return group;
-}
-
-function buildCane(){
-  const g = new THREE.Group();
-  const colors = [0x5c7a3f, 0x74904d, 0x8c9a5a];
-  for (let i=0;i<7;i++){
-    const len = 2.2 + Math.random()*0.7;
-    const geo = new THREE.CylinderGeometry(0.018, 0.045, len, 6);
-    const mat = new THREE.MeshStandardMaterial({ color: colors[i%colors.length], roughness:0.85 });
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set((Math.random()-0.5)*0.7, len/2*0.4, (Math.random()-0.5)*0.7);
-    m.rotation.z = (Math.random()-0.5)*0.9 + 1.15;
-    m.rotation.y = Math.random()*Math.PI;
-    g.add(m);
-  }
-  return g;
-}
-
-function buildRope(points, radius){
-  const curve = new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p)));
-  const geo = new THREE.TubeGeometry(curve, 24, radius, 6, false);
-  const mat = new THREE.MeshStandardMaterial({ color:0x9c8a63, roughness:0.95 });
-  return new THREE.Mesh(geo, mat);
-}
-
-const boatGroup = new THREE.Group();
-boatGroup.add(buildHull());
-
-const cargo = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.85,2.1), new THREE.MeshStandardMaterial({color:0x5a4128, roughness:0.9}));
-cargo.position.set(3.1, 0.42, 0);
-boatGroup.add(cargo);
-
-const mastStump = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.13,1.15,8), new THREE.MeshStandardMaterial({color:0x4a3520, roughness:0.85}));
-mastStump.position.set(1.7, 0.55, 0.25);
-mastStump.rotation.z = 0.12;
-boatGroup.add(mastStump);
-
-const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,7.6,8), new THREE.MeshStandardMaterial({color:0x4a3520, roughness:0.85}));
-boom.position.set(0.2, 0.32, 0.15);
-boom.rotation.z = Math.PI/2 - 0.14;
-boom.rotation.y = 0.18;
-boatGroup.add(boom);
-
-const tiller = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.07,1.7,8), new THREE.MeshStandardMaterial({color:0x4a3520, roughness:0.85}));
-tiller.position.set(-5.7, 0.42, 0);
-tiller.rotation.z = Math.PI/2 - 0.55;
-boatGroup.add(tiller);
-
-const cane = buildCane();
-cane.position.set(3.7, 0.5, 0.35);
-boatGroup.add(cane);
-
-boatGroup.add(buildRope([[1.7,0.9,0.2],[0.6,0.55,1.2],[-0.3,0.2,1.7],[-0.9,-0.15,1.65]], 0.03));
-boatGroup.add(buildRope([[1.7,0.9,0.2],[2.6,0.5,-1.0],[3.4,0.15,-1.55]], 0.025));
-
-const figure = buildFigure();
-figure.position.set(0.5, 0.75, -0.1);
-figure.rotation.y = 0.12;
-figure.scale.setScalar(1.2);
-boatGroup.add(figure);
-
-scene.add(boatGroup);
-
-/* sharks */
-const sharkCount = 3;
-const sharks = [];
-for (let i=0;i<sharkCount;i++){
-  const s = buildShark();
-  scene.add(s);
-  sharks.push({ mesh:s, radius:6.5+i*2.6, speed:0.05+i*0.012, phase:i*2.15+0.4 });
-}
-
-/* birds */
-const birdShape = new THREE.Shape();
-birdShape.moveTo(0,0);
-birdShape.lineTo(0.35,0.12);
-birdShape.lineTo(0.18,0.02);
-birdShape.lineTo(0.35,-0.1);
-birdShape.lineTo(0,0.02);
-birdShape.lineTo(-0.35,-0.1);
-birdShape.lineTo(-0.18,0.02);
-birdShape.lineTo(-0.35,0.12);
-birdShape.closePath();
-const birdGeo = new THREE.ShapeGeometry(birdShape);
-const birdMat = new THREE.MeshBasicMaterial({ color:0xe7e4d8, side:THREE.DoubleSide, fog:true });
-const BIRD_COUNT = 10;
-const birds = new THREE.InstancedMesh(birdGeo, birdMat, BIRD_COUNT);
-scene.add(birds);
-const birdData = new Array(BIRD_COUNT).fill(0).map((_,i)=>({
-  radius: 9+Math.random()*7,
-  speed: 0.28+Math.random()*0.22,
-  phase: Math.random()*Math.PI*2,
-  height: 3.5+Math.random()*3,
-  flap: 3+Math.random()*2
-}));
-
-/* distant ship */
-function makeShipSprite(){
-  const c = document.createElement('canvas');
-  c.width = 256; c.height = 128;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = 'rgba(18,24,26,0.85)';
-  ctx.beginPath();
-  ctx.moveTo(40,96); ctx.lineTo(212,96); ctx.lineTo(198,110); ctx.lineTo(58,110);
-  ctx.closePath(); ctx.fill();
-  for (const mx of [80,128,176]){ ctx.fillRect(mx-1,18,2,78); }
-  ctx.fillStyle = 'rgba(18,24,26,0.55)';
-  ctx.fillRect(62,32,34,42);
-  ctx.fillRect(112,24,32,50);
-  ctx.fillRect(160,36,32,38);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false, opacity:0.82, fog:true });
-  const spr = new THREE.Sprite(mat);
-  spr.scale.set(24,12,1);
-  return spr;
-}
-const ship = makeShipSprite();
-ship.position.set(-95, 6, -175);
-ship.material.opacity = 0.92;
-scene.add(ship);
-
-/* waterspout */
-function buildWaterspout(){
-  const group = new THREE.Group();
-  const h = 40;
-  const geo = new THREE.CylinderGeometry(5.4, 0.4, h, 22, 20, true);
-  const mat = new THREE.ShaderMaterial({
-    transparent:true, depthWrite:false, side:THREE.DoubleSide,
-    uniforms:{ uTime:{value:0}, uColor:{value:new THREE.Color(0xcfccc0)} },
-    vertexShader:`
-      uniform float uTime;
-      varying vec2 vUvV;
-      varying float vY;
-      void main(){
-        vUvV = uv;
-        vY = position.y;
-        float t = (position.y + ${(h/2).toFixed(2)}) / ${h.toFixed(2)};
-        float twist = t*9.0 + uTime*2.0;
-        float wobble = sin(uTime*1.2 + t*6.0) * 0.55 * (1.0-t);
-        vec3 pos = position;
-        float ang = atan(pos.z,pos.x) + twist*0.14;
-        float rad = length(pos.xz) + wobble*0.3;
-        pos.x = cos(ang)*rad;
-        pos.z = sin(ang)*rad;
-        gl_Position = projectionMatrix*modelViewMatrix*vec4(pos,1.0);
-      }
-    `,
-    fragmentShader:`
-      uniform vec3 uColor;
-      varying vec2 vUvV;
-      varying float vY;
-      void main(){
-        float topFade = smoothstep(0.0,1.0,vUvV.y);
-        float stripes = 0.85 + 0.15*sin(vUvV.x*40.0 + vY*0.3);
-        float alpha = (0.1 + 0.3*topFade) * stripes;
-        gl_FragColor = vec4(uColor, alpha);
-      }
-    `
-  });
-  const funnel = new THREE.Mesh(geo, mat);
-  funnel.position.y = h/2;
-  group.add(funnel);
-
-  const cloud = new THREE.Mesh(
-    new THREE.SphereGeometry(11,16,12),
-    new THREE.MeshStandardMaterial({ color:0x9c9990, roughness:1, transparent:true, opacity:0.5, depthWrite:false })
-  );
-  cloud.position.y = h+3;
-  cloud.scale.set(1.7,0.65,1.7);
-  group.add(cloud);
-
-  return { group, mat };
-}
-const spout = buildWaterspout();
-spout.group.position.set(100, 0, -190);
-scene.add(spout.group);
-
-/* ---------------------------------------------------------------
-   Pointer parallax
-----------------------------------------------------------------*/
-let targetPX = 0, targetPY = 0, px = 0, py = 0;
-if (!reduceMotion){
-  window.addEventListener('pointermove', (e)=>{
-    targetPX = (e.clientX/window.innerWidth - 0.5);
-    targetPY = (e.clientY/window.innerHeight - 0.5);
-  });
-}
+let yaw = 0, pitch = -0.13, yawT = 0, pitchT = -0.13, dragging = null;
+app.addEventListener('pointerdown', e => { dragging = { x:e.clientX, y:e.clientY }; app.classList.add('dragging'); app.setPointerCapture(e.pointerId); });
+app.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  yawT   += (e.clientX - dragging.x) * 0.0035;
+  pitchT  = Math.max(-0.45, Math.min(0.3, pitchT + (e.clientY - dragging.y) * 0.0025));
+  dragging = { x:e.clientX, y:e.clientY };
+});
+const endDrag = () => { dragging = null; app.classList.remove('dragging'); };
+app.addEventListener('pointerup', endDrag);
+app.addEventListener('pointercancel', endDrag);
 
 /* ---------------------------------------------------------------
    Animate
 ----------------------------------------------------------------*/
 resize();
-const boatX = 0, boatZ = 0;
-let firstFrame = true;
+let firstFrame = true, ride = 0;
+const look = new THREE.Vector3();
 
 function animate(now){
-  const t = reduceMotion ? now*0.0002 : now*0.001;
+  const t = reduceMotion ? now*0.0003 : now*0.001;
+  skyUniforms.uTime.value = t;
 
-  oceanMat.uniforms.uTime.value = t;
-  skyMat.uniforms.uTime.value = t;
-  spout.mat.uniforms.uTime.value = t;
+  yaw += (yawT - yaw) * 0.08;
+  pitch += (pitchT - pitch) * 0.08;
 
-  const eps = 1.0;
-  const hC = waveHeight(boatX, boatZ, t);
-  const hX = waveHeight(boatX+eps, boatZ, t);
-  const hZ = waveHeight(boatX, boatZ+eps, t);
-  boatGroup.position.set(boatX, hC-0.32, boatZ);
-  boatGroup.rotation.z = Math.atan2(hX-hC, eps) * 0.55;
-  boatGroup.rotation.x = -Math.atan2(hZ-hC, eps) * 0.55;
-  boatGroup.rotation.y = Math.PI*0.08 + Math.sin(t*0.15)*0.025;
-
-  sharks.forEach((s,i)=>{
-    const ang = t*s.speed + s.phase;
-    const x = boatX + Math.cos(ang)*s.radius*1.25;
-    const z = boatZ + Math.sin(ang)*s.radius;
-    const y = waveHeight(x,z,t) - 0.28;
-    s.mesh.position.set(x,y,z);
-    s.mesh.rotation.y = -ang - Math.PI/2 + Math.sin(t*0.6+i)*0.08;
-  });
-
-  const m4 = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const sc = new THREE.Vector3(1,1,1);
-  for (let i=0;i<BIRD_COUNT;i++){
-    const b = birdData[i];
-    const ang = t*b.speed + b.phase;
-    const x = boatX + Math.cos(ang)*b.radius + 6;
-    const z = boatZ + Math.sin(ang*1.3)*b.radius*0.6 - 4;
-    const y = b.height + Math.sin(t*b.flap + i)*0.4;
-    const heading = ang + Math.PI/2;
-    q.setFromEuler(new THREE.Euler(0, -heading, Math.sin(t*b.flap*2+i)*0.35));
-    m4.compose(new THREE.Vector3(x,y,z), q, sc.clone().multiplyScalar(1.1));
-    birds.setMatrixAt(i, m4);
-  }
-  birds.instanceMatrix.needsUpdate = true;
-
-  ship.position.y = 5.2 + Math.sin(t*0.3)*0.4;
-
-  px += (targetPX-px)*0.03;
-  py += (targetPY-py)*0.03;
-
-  camera.position.set(-3 + px*3, 7.6 - py*1.4, 17);
-  camera.position.y += Math.sin(t*0.35)*0.16;
-  camera.position.x += Math.sin(t*0.22)*0.22;
-  camera.lookAt(1.6, hC+0.9, -8 + px*1.5);
+  // a viewer low on the water, lifted a little by each passing swell
+  const cx = Math.sin(t*0.04)*0.6, cz = 0;
+  ride += (swellHeight(cx, cz, t) - ride) * 0.12;
+  camera.position.set(cx, 5.2 + ride*0.45, cz);
+  const sway = reduceMotion ? 0 : Math.sin(t*0.5)*0.008;
+  look.set(Math.sin(yaw), Math.tan(pitch + sway), -Math.cos(yaw)).add(camera.position);
+  camera.lookAt(look);
+  camera.rotateZ(reduceMotion ? 0 : Math.sin(t*0.37)*0.006 + ride*0.004);
+  sky.position.copy(camera.position);
 
   renderer.render(scene, camera);
 

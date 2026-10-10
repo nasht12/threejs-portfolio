@@ -15,7 +15,7 @@ portal into the live scene.
 | Fog Hollow | depth-weighted fog scattering and crepuscular rays; first-person walk |
 | Indigo Ridge | a character lofted onto a skeleton in code; camera-following grass; live wind and lighting |
 | Dents du Midi (after Courbet) | per-frame cloud-shadow texture; oil-paint and natural looks |
-| Gulf Stream Study (after Homer) | one wave formula on the CPU and GPU, so props ride the surface they're drawn on |
+| Gulf Stream Study (Homer's sea) | Gerstner swell on the mesh, chop per pixel; waves too small to draw become highlight roughness, so the far sea doesn't sparkle |
 | Rigging Bench | drop in any humanoid; automatic bone mapping and mocap retargeting; glTF-Transform compression (7.2 → 1.9 MB) |
 
 ## The ring itself
