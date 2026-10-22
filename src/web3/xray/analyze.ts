@@ -309,7 +309,11 @@ export function headline(d: XrayData): string {
     const rec = flows.filter(x => x.asset === asset && lower(x.from) === lower(d.tx.from)).map(x => x.to)[0];
     what = `Sent ${list(out)}${rec ? ` to ${label(rec).name}` : ''}.`;
   } else if (got.length) what = `Received ${list(got)}.`;
-  else what = `Called ${call?.signature?.split('(')[0] ?? 'a function'} on ${label(d.tx.to).name}; the sender’s balances didn’t change.`;
+  else {
+    const target = label(d.tx.to);
+    const on = target.kind === 'contract' ? `contract ${short(lower(d.tx.to))}` : target.name;
+    what = `Called ${call?.signature?.split('(')[0] ?? 'a function'} on ${on}; apart from the fee, the sender’s balances didn’t change.`;
+  }
   const pos = Number(d.tx.transactionIndex) + 1;
   return `${what} Included in block #${Number(d.block.number).toLocaleString('en-US')} as transaction ${pos} of ${d.block.txCount}. ${costs}`;
 }
