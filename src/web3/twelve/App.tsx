@@ -53,7 +53,7 @@ function Header() {
   return (
     <header className="w3-head compact-head">
       <a className="w3-back" href={`${import.meta.env.BASE_URL}web3/`}>← Web3</a>
-      <h1 className="scene-title">Block Fart Tree</h1>
+      <h1 className="scene-title">Block Factory</h1>
       <details className="w3-how compact-info" open={pinned || hovered}
         onMouseEnter={() => { if (matchMedia('(hover: hover)').matches) setHovered(true); }} onMouseLeave={() => setHovered(false)}>
         <summary onClick={e => { e.preventDefault(); setPinned(!pinned); setHovered(false); }}>

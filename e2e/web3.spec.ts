@@ -9,7 +9,7 @@ test('Twelve Seconds plays the recording without touching the network, and every
   const sockets: string[] = [];
   page.on('websocket', ws => sockets.push(ws.url()));
   await page.goto(REPLAY);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Block Fart Tree');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Block Factory');
   await expect(page.locator('.info-state')).toHaveText('Replay');
   // the explanation is folded away; clicking pins it open
   await page.getByText('How to read this').click();
