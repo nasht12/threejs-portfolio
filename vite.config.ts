@@ -9,8 +9,13 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
-    // two pages: the gallery, and the Web3 section (web3/index.html)
-    rollupOptions: { input: { main: resolve(import.meta.dirname, 'index.html'), web3: resolve(import.meta.dirname, 'web3/index.html') } },
+    // the gallery, and the Web3 section: a landing page and one page per piece
+    rollupOptions: {
+      input: Object.fromEntries(
+        ['index.html', 'web3/index.html', 'web3/twelve-seconds/index.html', 'web3/xray/index.html']
+          .map(p => [p.replace(/\/?index\.html$/, '') || 'main', resolve(import.meta.dirname, p)]),
+      ),
+    },
   },
   test: { include: ['src/**/*.test.ts'], environment: 'node' },
 });

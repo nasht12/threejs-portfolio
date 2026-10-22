@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { CompactBlock } from './rpc';
-import { CATEGORIES, classify, type Category, type TxInfo } from './decode';
-import { tipPerGas } from './fees';
+import type { CompactBlock } from '../rpc';
+import { CATEGORIES, classify, type Category, type TxInfo } from '../decode';
+import { tipPerGas } from '../fees';
 import { poolPos } from './layout';
 import type { Pool } from './pool';
 

@@ -1,0 +1,22 @@
+[
+  {
+    "label": "Swap through Uniswap",
+    "hash": "0xab5f5d4f0debc0b6f0669d97bd80d786df83965d2b642be12b6529ee82a8891a"
+  },
+  {
+    "label": "Token transfer",
+    "hash": "0xba8b313a40b1634e4c1ccb5afa5bbf46e05dded8b9bb36dc0521a85d4ad6b3c5"
+  },
+  {
+    "label": "Approval",
+    "hash": "0x13e5c8973425bec50d87d57dbc04c84b11dfd4acbc6e96c1b5cb2185ed72ac65"
+  },
+  {
+    "label": "Smart-account bundle",
+    "hash": "0x4dc471e491bbfec2e063f129f92a1dd6e49036aaa99f18455b5e19f595662ce1"
+  },
+  {
+    "label": "Rollup blob",
+    "hash": "0x373928749914b7627be4af411a7a34e350e39695636e9b26e3bd70f29186da31"
+  }
+]

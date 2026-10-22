@@ -1,0 +1,14 @@
+.hub { max-width: 1120px; margin: 0 auto; padding: 28px var(--gutter) 80px; }
+.hub-back { font-size: 13px; color: var(--ink-3); text-decoration: none; }
+.hub-back:hover { color: var(--ink); text-decoration: underline; }
+.hub h1 { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; margin: 8px 0 10px; }
+.hub-lede { max-width: 62ch; font-size: 16px; line-height: 1.55; color: var(--ink-2); margin: 0 0 32px; }
+.hub-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 24px; }
+.hub-cards > li > a { display: block; height: 100%; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; transition: border-color .15s, transform .15s; }
+.hub-cards > li > a:hover { border-color: var(--ink); transform: translateY(-2px); }
+.hub-cards img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: left top; background: var(--bg); border-bottom: 1px solid var(--line); }
+.hub-cards h2 { font-size: 20px; font-weight: 600; margin: 16px 18px 6px; }
+.hub-cards p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin: 0 18px 12px; }
+.hub-tags { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 18px 18px; padding: 0; }
+.hub-tags li { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: #efece5; color: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { .hub-cards > li > a { transition: none; } .hub-cards > li > a:hover { transform: none; } }

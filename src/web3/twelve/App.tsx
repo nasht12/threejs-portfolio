@@ -2,8 +2,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { Web3Canvas } from './Scene';
 import { startFeed } from './feed';
 import { currentBlock, pct, useWeb3, type BlockView } from './store';
-import { CATEGORIES, CATEGORY, EXPLAIN, TX_TYPES, formatEth, formatGwei, short } from './decode';
-import { blobCount, burnedWei, nextBaseFee } from './fees';
+import { CATEGORIES, CATEGORY, EXPLAIN, TX_TYPES, formatEth, formatGwei, short } from '../decode';
+import { blobCount, burnedWei, nextBaseFee } from '../fees';
 
 const ETHERSCAN = 'https://etherscan.io';
 const SLOT_MS = 12_000;
@@ -40,7 +40,7 @@ function Header() {
   const note = useWeb3(s => s.note);
   return (
     <header className="w3-head">
-      <a className="w3-back" href={import.meta.env.BASE_URL}>← Three.js Scenes</a>
+      <a className="w3-back" href={`${import.meta.env.BASE_URL}web3/`}>← Web3</a>
       <h1>Twelve Seconds</h1>
       <p className="w3-lede">Ethereum mainnet as it happens, read-only. Transactions wait in the public mempool; every twelve seconds a block is built from some of them, and from order flow that never went public.</p>
       <p className={`w3-status is-${status}`}>
@@ -225,6 +225,9 @@ function TxDetail({ b, i, onClose }: { b: BlockView; i: number; onClose: () => v
           ? 'Never seen in the public mempool. It reached the builder privately: a private RPC, a bundle, or the builder’s own transaction.'
           : `Waited ${(seen / 1000).toFixed(1)} s in the public mempool before this block took it.`}
       </p>
+      <a className="xray-link" href={`${import.meta.env.BASE_URL}web3/xray/?tx=${hash}&seen=${seen === null ? 'private' : Math.round(seen)}`}>
+        X-ray this transaction →
+      </a>
       <dl>
         <dt>Hash</dt><dd className="mono"><a href={`${ETHERSCAN}/tx/${hash}`} target="_blank" rel="noopener">{short(hash, 10, 8)}</a></dd>
         <dt>Calls</dt><dd className="mono">{info.action}</dd>

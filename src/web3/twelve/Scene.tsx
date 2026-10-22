@@ -4,7 +4,7 @@ import { Grid, OrbitControls, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { easing } from 'maath';
 import interUrl from '@fontsource/inter/files/inter-latin-500-normal.woff?url';
-import { CATEGORY } from './decode';
+import { CATEGORY } from '../decode';
 import { CAMERA, chainPos, CHAIN, POOL, poolPos, PRIVATE, SLAB, tileGrid, tileLocal, tipHeight } from './layout';
 import { pool, LOW } from './feed';
 import { useWeb3, type BlockView } from './store';

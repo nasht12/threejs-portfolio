@@ -15,7 +15,8 @@ at https://nasht12.github.io/threejs-portfolio/ by `.github/workflows/deploy.yml
 | `npm run test:e2e` | Playwright against a production build, system Chrome + SwiftShader (no GPU needed) |
 | `node scripts/capture-posters.mjs [id…]` | Re-capture poster stills for scenes without rendered video |
 | `node scripts/patch-scenes.mjs` | Wire adaptive quality into the scene pages (after re-copying them) |
-| `node scripts/record-chain.mjs [n]` | Re-record n mainnet blocks for the Web3 page's replay mode |
+| `node scripts/record-chain.mjs [n]` | Re-record n mainnet blocks for Twelve Seconds' replay mode |
+| `node scripts/record-xray.mjs` | Re-save the X-ray's example transactions |
 
 Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the same three before deploying.
 
@@ -79,23 +80,39 @@ light and style in a vanilla Zustand store (`zustand/vanilla` + `persist` from j
 (`#view=…&light=…&style=…`, a shareable look), and when embedded it posts `ready/look/perf` to the portfolio and accepts
 `set-look`. To bring another scene onto it, apply the same pattern in scene-director first.
 
-## The Web3 section (`web3/index.html`, `src/web3/`)
+## The Web3 section (`web3/`, `src/web3/`)
 
-"Twelve Seconds": Ethereum mainnet, live and **read-only** (no wallet, no keys, no transactions sent). A second Vite
-page (`build.rollupOptions.input`), sharing the build and deploy; it will also become a portfolio card later.
+Read-only Ethereum pieces (no wallet, no keys, nothing sent), each its own Vite page in `build.rollupOptions.input`,
+sharing the build and deploy. They will also become portfolio cards later.
 
-- Data: `source.ts` subscribes to `newPendingTransactions` (hashes only) and `newHeads` on a public node
-  (`NODES`: publicnode, then dRPC), fetching each block once. If no node answers it falls back to the recording
-  `public/web3/replay.json` (`node scripts/record-chain.mjs [blocks]`, ~3 min). `?source=replay` forces it; tests use it.
-- `rpc.js` (plain JS + `rpc.d.ts`, so the recorder can import it) compacts raw blocks; `decode.ts` names transactions from
-  type, recipient and selector only; `fees.ts` is exact EIP-1559 integer maths. All unit-tested in `web3.test.ts`.
-- `pool.ts` is the public mempool as this page saw it: fixed slots, outside React. `store.ts` (`useWeb3`) holds blocks and
-  selection; `blockView()` matches each block against the pool, which is how "seen in public first" vs "never public"
-  (private order flow) is measured. Say "as seen by one node": it is a lower bound, and the first ~30 s undercount.
-- Category colours are a fixed, validated order (`CATEGORIES`); never cycle or re-rank them. Three sit under 3:1 on the
-  light surface, so every transaction is also listed with its name in the details panel.
-- Same canvas rules as the gallery (no per-frame React state, instanced meshes, no allocation in `useFrame`), except the
-  canvas renders every frame: the pool is always moving. Announcing new blocks is opt-in (every 12 s is too chatty).
+| Page | Code | |
+|---|---|---|
+| `web3/` | `src/web3/hub/` | landing page; add each new piece to `PIECES` in `Hub.tsx`, with a poster in `public/web3/media/` |
+| `web3/twelve-seconds/` | `src/web3/twelve/` | live mempool to block, React Three Fiber |
+| `web3/xray/?tx=0x…` | `src/web3/xray/` | one transaction taken apart in six layers |
+
+Shared: `rpc.js` (+ `rpc.d.ts`; plain JS so Node scripts can import it) compacts raw blocks, `decode.ts` names
+transactions from type, recipient and selector, `fees.ts` is exact EIP-1559 integer maths, `base.css` the tokens.
+
+**Twelve Seconds.** `twelve/source.ts` subscribes to `newPendingTransactions` (hashes only) and `newHeads` on a public node
+(`NODES`: publicnode, then dRPC), fetching each block once; with no node it falls back to `public/web3/replay.json`
+(`node scripts/record-chain.mjs [blocks]`, ~3 min). `?source=replay` forces it; tests use it. `pool.ts` is the mempool as
+this page saw it (fixed slots, outside React); `store.ts` `blockView()` matches each block against it, which is how
+"seen in public first" vs "never public" is measured. Say "as seen by one node": it's a lower bound, and the first ~30 s
+undercount. The canvas renders every frame (the pool always moves); otherwise the gallery's canvas rules apply.
+
+**X-ray.** `xray/load.js` fetches tx, receipt and block (publicnode), the call tree (`debug_traceTransaction` with
+`callTracer` on dRPC, optional), token metadata (one batched `eth_call`), and names for unknown selectors and event topics
+(Sourcify's signature database; anything from it is labelled unverified). `analyze.ts` is pure and unit-tested against
+the saved examples: the calldata word layout (which argument owns each 32-byte word, through offsets), viem decoding,
+plain-language events, value flows from the trace and logs, net changes, the fee split, the headline. `known.ts`
+holds ABIs keyed by their computed selector, so a typo can't attach the wrong meaning. The examples in
+`xray/examples.json` are served from `public/web3/xray-examples.json` (`node scripts/record-xray.mjs`), so they're instant,
+work offline and keep CI off the network; any other hash is fetched live.
+
+- Colours: categories (and X-ray argument colours) use the fixed, validated order in `decode.ts` `CATEGORIES`; never
+  cycle or re-rank them. Three sit under 3:1 on the light surface, so everything coloured is also given in text.
+- No links inside buttons or `<summary>` (axe `nested-interactive`): `Addr` takes `plain` for those.
 
 ## Adding a scene
 

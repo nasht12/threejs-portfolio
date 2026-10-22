@@ -18,21 +18,38 @@ portal into the live scene.
 | Gulf Stream Study (Homer's sea) | Gerstner swell on the mesh, chop per pixel; waves too small to draw become highlight roughness, so the far sea doesn't sparkle |
 | Rigging Bench | drop in any humanoid; automatic bone mapping and mocap retargeting; glTF-Transform compression (7.2 → 1.9 MB) |
 
-## Web3: Twelve Seconds
+## Web3
 
-**Live: https://nasht12.github.io/threejs-portfolio/web3/**
+**Live: https://nasht12.github.io/threejs-portfolio/web3/**. Read-only pieces about how Ethereum actually works, on live
+chain data from public nodes: no wallet, no keys, nothing sent.
 
-Ethereum mainnet as it happens, read-only: no wallet, no keys, nothing sent. Pending transactions from one public
-node swirl in the mempool. Every twelve seconds a block lands, and each of its transactions either flies in from the
-pool, where it waited in public, or drops in from above. Those last ones never went public: they reached the builder
-through private order flow. Often only a third to a half of a builder's block was seen in public first.
+### Twelve Seconds
 
-- **Tiles in block order:** colour is what the transaction does, named from its type, recipient and 4-byte selector, with no
-  third-party APIs. Height is the tip it paid the builder, on a log scale. Every transaction is also listed and explained in the side panel.
+Ethereum mainnet as it happens. Pending transactions from one public node swirl in the mempool. Every twelve seconds a
+block lands, and each of its transactions either flies in from the pool, where it waited in public, or drops in from
+above. Those last ones never went public: they reached the builder through private order flow. Often only a third to
+a half of a builder's block was seen in public first.
+
+- **Tiles in block order:** colour is what the transaction does, named from its type, recipient and 4-byte selector. Height
+  is the tip it paid the builder, on a log scale. Every transaction is also listed and explained in the side panel.
 - **Exact EIP-1559 maths:** next base fee, gas against the 50% target, ETH burned.
-- **Builders and rollups:** each block shows the builder named in its `extraData`, its blob count (EIP-4844), and its ERC-4337 bundles.
-- **Holds up offline:** if no node answers it falls back to a recording (`scripts/record-chain.mjs`). CI tests the recording
-  with zero network sockets and an axe scan.
+- **Builders and rollups:** each block shows the builder named in its `extraData`, its blobs (EIP-4844), and its ERC-4337 bundles.
+- **Holds up offline:** if no node answers it falls back to a recording. CI tests it with zero sockets and an axe scan.
+
+### Transaction X-ray
+
+Paste any transaction hash, or follow "X-ray this transaction" from Twelve Seconds, and it comes apart in six layers:
+
+1. **The signed envelope:** every field the sender signed, with what each one is for.
+2. **What it asks for:** calldata mapped word by word. Each 32-byte word is coloured by the argument it belongs to,
+   following dynamic offsets into the tail, beside the decoded values (viem). Uniswap Universal Router command bytes are
+   decoded into their steps.
+3. **What ran:** the call tree from a trace, with CALL, DELEGATECALL and STATICCALL, ether moved, and reverts.
+4. **What it announced:** events in plain language, with warnings on unlimited approvals.
+5. **Where value moved:** an arc diagram of every ether and token movement, plus net change per party.
+6. **What it cost:** gas × price, split into burned and the builder's tip, and blob fees.
+
+A one-sentence headline is generated from all of it ("Swapped 104,843.61 GULD for 106,591.01 CDXR…").
 
 ## The ring itself
 

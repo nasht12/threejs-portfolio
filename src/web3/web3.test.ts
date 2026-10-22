@@ -3,9 +3,9 @@ import { builderName, compactTx } from './rpc.js';
 import type { TxTuple } from './rpc';
 import { classify, formatEth, formatGwei } from './decode';
 import { blobCount, burnedWei, nextBaseFee, tipPerGas } from './fees';
-import { createPool } from './pool';
-import { blockView, createWeb3Store, currentBlock, pct } from './store';
-import { chainPos, tileGrid, tipHeight } from './layout';
+import { createPool } from './twelve/pool';
+import { blockView, createWeb3Store, currentBlock, pct } from './twelve/store';
+import { chainPos, tileGrid, tipHeight } from './twelve/layout';
 
 const tx = (over: Partial<Record<number, unknown>> = {}): TxTuple => {
   const t: TxTuple = ['0xaa', '0xfrom', '0xto', '0x0', '', 0, 21000, 2, 30e9, 2e9, 0, 7];

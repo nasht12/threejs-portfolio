@@ -1,4 +1,4 @@
-import { compactBlock, type CompactBlock } from './rpc';
+import { compactBlock, type CompactBlock } from '../rpc';
 
 /*
  * Where the data comes from. Live: a public Ethereum node over WebSocket, read-only (two subscriptions and one
