@@ -15,6 +15,7 @@ at https://nasht12.github.io/threejs-portfolio/ by `.github/workflows/deploy.yml
 | `npm run test:e2e` | Playwright against a production build, system Chrome + SwiftShader (no GPU needed) |
 | `node scripts/capture-posters.mjs [id…]` | Re-capture poster stills for scenes without rendered video |
 | `node scripts/patch-scenes.mjs` | Wire adaptive quality into the scene pages (after re-copying them) |
+| `node scripts/record-chain.mjs [n]` | Re-record n mainnet blocks for the Web3 page's replay mode |
 
 Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the same three before deploying.
 
@@ -77,6 +78,24 @@ light and style in a vanilla Zustand store (`zustand/vanilla` + `persist` from j
 `setLook`, the scene's own `goView/setLight/setStyle` apply and `recordLook` the change, the hash mirrors it
 (`#view=…&light=…&style=…`, a shareable look), and when embedded it posts `ready/look/perf` to the portfolio and accepts
 `set-look`. To bring another scene onto it, apply the same pattern in scene-director first.
+
+## The Web3 section (`web3/index.html`, `src/web3/`)
+
+"Twelve Seconds": Ethereum mainnet, live and **read-only** (no wallet, no keys, no transactions sent). A second Vite
+page (`build.rollupOptions.input`), sharing the build and deploy; it will also become a portfolio card later.
+
+- Data: `source.ts` subscribes to `newPendingTransactions` (hashes only) and `newHeads` on a public node
+  (`NODES`: publicnode, then dRPC), fetching each block once. If no node answers it falls back to the recording
+  `public/web3/replay.json` (`node scripts/record-chain.mjs [blocks]`, ~3 min). `?source=replay` forces it; tests use it.
+- `rpc.js` (plain JS + `rpc.d.ts`, so the recorder can import it) compacts raw blocks; `decode.ts` names transactions from
+  type, recipient and selector only; `fees.ts` is exact EIP-1559 integer maths. All unit-tested in `web3.test.ts`.
+- `pool.ts` is the public mempool as this page saw it: fixed slots, outside React. `store.ts` (`useWeb3`) holds blocks and
+  selection; `blockView()` matches each block against the pool, which is how "seen in public first" vs "never public"
+  (private order flow) is measured. Say "as seen by one node": it is a lower bound, and the first ~30 s undercount.
+- Category colours are a fixed, validated order (`CATEGORIES`); never cycle or re-rank them. Three sit under 3:1 on the
+  light surface, so every transaction is also listed with its name in the details panel.
+- Same canvas rules as the gallery (no per-frame React state, instanced meshes, no allocation in `useFrame`), except the
+  canvas renders every frame: the pool is always moving. Announcing new blocks is opt-in (every 12 s is too chatty).
 
 ## Adding a scene
 

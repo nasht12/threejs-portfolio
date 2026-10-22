@@ -18,6 +18,7 @@ export function Tools() {
   return (
     <div className="tools">
       <button type="button" className="chip" aria-pressed={showStats} onClick={toggleStats}>Frame stats</button>
+      <a className="chip" href={`${import.meta.env.BASE_URL}web3/`}>Web3</a>
       <a className="chip" href={SITE.repo} target="_blank" rel="noopener">Source</a>
     </div>
   );

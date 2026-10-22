@@ -18,6 +18,22 @@ portal into the live scene.
 | Gulf Stream Study (Homer's sea) | Gerstner swell on the mesh, chop per pixel; waves too small to draw become highlight roughness, so the far sea doesn't sparkle |
 | Rigging Bench | drop in any humanoid; automatic bone mapping and mocap retargeting; glTF-Transform compression (7.2 → 1.9 MB) |
 
+## Web3: Twelve Seconds
+
+**Live: https://nasht12.github.io/threejs-portfolio/web3/**
+
+Ethereum mainnet as it happens, read-only: no wallet, no keys, nothing sent. Pending transactions from one public
+node swirl in the mempool. Every twelve seconds a block lands, and each of its transactions either flies in from the
+pool, where it waited in public, or drops in from above. Those last ones never went public: they reached the builder
+through private order flow. Often only a third to a half of a builder's block was seen in public first.
+
+- **Tiles in block order:** colour is what the transaction does, named from its type, recipient and 4-byte selector, with no
+  third-party APIs. Height is the tip it paid the builder, on a log scale. Every transaction is also listed and explained in the side panel.
+- **Exact EIP-1559 maths:** next base fee, gas against the 50% target, ETH burned.
+- **Builders and rollups:** each block shows the builder named in its `extraData`, its blob count (EIP-4844), and its ERC-4337 bundles.
+- **Holds up offline:** if no node answers it falls back to a recording (`scripts/record-chain.mjs`). CI tests the recording
+  with zero network sockets and an axe scan.
+
 ## The ring itself
 
 - **Stack:** React 19, React Three Fiber 9, drei 10, three r186, Zustand 5, Vite 8, TypeScript 7, Vitest, Playwright.
