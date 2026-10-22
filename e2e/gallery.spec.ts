@@ -54,10 +54,11 @@ test('keyboard: turn the ring, dive through the portal, come back', async ({ pag
   await page.screenshot({ path: 'test-results/ring-turned.png' });
 
   await page.keyboard.press('Enter'); // dive through the front card's portal
-  await expect(page.getByRole('button', { name: 'Entering…' })).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Isle of the Dead' });
+  // the dive shows "Entering…" briefly; on a slow CI runner it can finish before the check, so either proves it started
+  await expect(page.getByRole('button', { name: 'Entering…' }).or(dialog)).toBeVisible();
   await page.waitForTimeout(350);
   await page.screenshot({ path: 'test-results/dive.png' });
-  const dialog = page.getByRole('dialog', { name: 'Isle of the Dead' });
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(/#\/scene\/isle-of-the-dead$/);
   await expect(dialog.locator('iframe')).toHaveAttribute('src', /scenes\/isle-of-the-dead\.html$/);
