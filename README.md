@@ -26,9 +26,10 @@ chain data from public nodes: no wallet, no keys, nothing sent.
 ### Twelve Seconds
 
 Ethereum mainnet as it happens. Pending transactions from one public node swirl in the mempool. Every twelve seconds a
-block lands, and each of its transactions either flies in from the pool, where it waited in public, or drops in from
-above. Those last ones never went public: they reached the builder through private order flow. Often only a third to
-a half of a builder's block was seen in public first.
+block lands: transactions that waited in public arc in from the pool, and the rest appear straight in their slot.
+Those never went past this node in public: most reached the builder through private order flow. Often only a third
+to a half of a builder's block was seen in public first. A recorded block is drawn at once as a labelled preview,
+so the page is never empty while the live node connects.
 
 - **Tiles in block order:** colour is what the transaction does, named from its type, recipient and 4-byte selector. Height
   is the tip it paid the builder, on a log scale. Every transaction is also listed and explained in the side panel.

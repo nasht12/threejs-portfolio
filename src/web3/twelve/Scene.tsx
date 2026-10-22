@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { easing } from 'maath';
 import interUrl from '@fontsource/inter/files/inter-latin-500-normal.woff?url';
 import { CATEGORY } from '../decode';
-import { CAMERA, chainPos, CHAIN, POOL, poolPos, PRIVATE, SLAB, tileGrid, tileLocal, tipHeight } from './layout';
+import { CAMERA, chainPos, CHAIN, POOL, poolPos, SLAB, tileGrid, tileLocal, tipHeight } from './layout';
 import { pool, LOW } from './feed';
 import { useWeb3, type BlockView } from './store';
 
@@ -37,10 +37,9 @@ export function Web3Canvas() {
       <PendingPool />
       <Chain />
       <Flights />
-      <PrivateRelay />
+      <AssemblyTray />
       <FitWidth />
-      <OrbitControls target={[...CAMERA.target]} enablePan={false} enableDamping minDistance={9} maxDistance={30}
-        minPolarAngle={0.55} maxPolarAngle={1.28} minAzimuthAngle={-0.6} maxAzimuthAngle={0.6} />
+      <OrbitControls target={[...CAMERA.target]} enablePan enableDamping minDistance={7} maxDistance={40} minPolarAngle={0.25} maxPolarAngle={1.5} />
     </Canvas>
   );
 }
@@ -96,21 +95,21 @@ function PendingPool() {
   );
 }
 
-function PrivateRelay() {
+/** A faint tray where the newest block assembles; it pulses for a moment as each new block lands. */
+function AssemblyTray() {
+  const ref = useRef<THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>>(null);
+  const latest = useWeb3(s => s.blocks[0]);
+  const [x, , z] = chainPos(0);
+  useFrame(() => {
+    if (!ref.current) return;
+    const age = latest ? (performance.now() - latest.arrivedAt) / 1000 : 10;
+    ref.current.material.opacity = 0.08 + (reduceMotion() || age >= 2.5 ? 0 : 0.16 * Math.sin(Math.PI * Math.min(1, age / 2.5)) ** 2);
+  });
   return (
-    <group>
-      <mesh position={[PRIVATE.x, PRIVATE.y, PRIVATE.z]}>
-        <octahedronGeometry args={[0.16, 0]} />
-        <meshStandardMaterial color="#3d3b36" />
-      </mesh>
-      <mesh position={[PRIVATE.x, PRIVATE.y / 2 + 0.6, PRIVATE.z]}>
-        <cylinderGeometry args={[0.008, 0.008, PRIVATE.y - 1.2, 4]} />
-        <meshBasicMaterial color="#cbc6bb" />
-      </mesh>
-      <Text font={interUrl} position={[PRIVATE.x - 0.35, PRIVATE.y, PRIVATE.z]} fontSize={0.24} color="#3d3b36" anchorX="right" anchorY="middle">
-        PRIVATE ORDER FLOW
-      </Text>
-    </group>
+    <mesh ref={ref} position={[x, -0.13, z]}>
+      <boxGeometry args={[SLAB + 0.55, 0.025, SLAB + 0.55]} />
+      <meshBasicMaterial color="#9bbfb0" transparent opacity={0.08} depthWrite={false} />
+    </mesh>
   );
 }
 
@@ -130,7 +129,7 @@ function Chain() {
 }
 
 /** Where a flight ends and a tile grows from: per block, filled in when the block first appears. */
-const FLIGHT = { spread: 1400, public: 1000, private: 750 };
+const FLIGHT = { spread: 1400, public: 1000, private: 750, arc: 1.2 };
 
 function BlockSlab({ block, rank }: { block: BlockView; rank: number }) {
   const group = useRef<THREE.Group>(null);
@@ -156,18 +155,19 @@ function BlockSlab({ block, rank }: { block: BlockView; rank: number }) {
     return { pos, h, land, still };
   }, [block, n, cols, cell]);
 
-  // launch this block's flights once, from the pool (or the private relay) to the tiles at the front of the chain
+  // launch this block's flights once: only transactions seen in the pool fly in from it. The rest (private order flow,
+  // or simply missed by this node) appear in their slot, with no path, since there is nowhere honest to draw one from.
   useEffect(() => {
     if (layout.still) return;
     const [bx, , bz] = chainPos(0);
     for (let i = 0; i < n; i++) {
-      const ox = block.origins[i * 3], isPrivate = Number.isNaN(ox);
-      const jitter = isPrivate ? (i % 7) * 0.05 - 0.15 : 0;
+      const ox = block.origins[i * 3];
+      if (Number.isNaN(ox)) continue;
       flights.push({
-        sx: isPrivate ? PRIVATE.x + jitter : ox, sy: isPrivate ? PRIVATE.y : block.origins[i * 3 + 1], sz: isPrivate ? PRIVATE.z + jitter : block.origins[i * 3 + 2],
+        sx: ox, sy: block.origins[i * 3 + 1], sz: block.origins[i * 3 + 2],
         ex: bx + layout.pos[i * 2], ey: layout.h[i] + 0.1, ez: bz + layout.pos[i * 2 + 1],
-        t0: layout.land[i] - (isPrivate ? FLIGHT.private : FLIGHT.public), dur: isPrivate ? FLIGHT.private : FLIGHT.public,
-        color: new THREE.Color(CATEGORY[block.info[i].category].color), arc: !isPrivate,
+        t0: layout.land[i] - FLIGHT.public, dur: FLIGHT.public,
+        color: new THREE.Color(CATEGORY[block.info[i].category].color),
       });
     }
   }, [block, n, layout]);
@@ -246,7 +246,7 @@ function BlockSlab({ block, rank }: { block: BlockView; rank: number }) {
 
 // ---- transactions in flight -----------------------------------------------------------------------------------
 
-interface Flight { sx: number; sy: number; sz: number; ex: number; ey: number; ez: number; t0: number; dur: number; color: THREE.Color; arc: boolean }
+interface Flight { sx: number; sy: number; sz: number; ex: number; ey: number; ez: number; t0: number; dur: number; color: THREE.Color }
 const flights: Flight[] = [];
 const MAX_FLIGHTS = 1600;
 
@@ -263,11 +263,11 @@ function Flights() {
       if (k >= MAX_FLIGHTS) break;
       const u = (now - f.t0) / f.dur;
       if (u < 0) continue;
-      const e = f.arc ? u * u * (3 - 2 * u) : u * u;          // public: an arc out of the pool; private: a drop
+      const e = u * u * (3 - 2 * u);                          // a low arc out of the pool
       const o = k * 16, s = 0.11;
       a[o] = s; a[o + 5] = s; a[o + 10] = s; a[o + 15] = 1;
       a[o + 12] = f.sx + (f.ex - f.sx) * e;
-      a[o + 13] = f.sy + (f.ey - f.sy) * e + (f.arc ? Math.sin(Math.PI * u) * 2.2 : 0);
+      a[o + 13] = f.sy + (f.ey - f.sy) * e + Math.sin(Math.PI * u) * FLIGHT.arc;
       a[o + 14] = f.sz + (f.ez - f.sz) * e;
       m.setColorAt(k, c.copy(PENDING).lerp(f.color, Math.min(1, u * 1.6)));
       k++;

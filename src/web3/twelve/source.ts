@@ -34,6 +34,8 @@ export function startLive(sink: Sink, giveUp: () => void): () => void {
       clearTimeout(openTimeout);
       sock.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_subscribe', params: ['newPendingTransactions'] }));
       sock.send(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'eth_subscribe', params: ['newHeads'] }));
+      // and the newest block right away, so the recorded preview is replaced without waiting for the next one
+      sock.send(JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'eth_getBlockByNumber', params: ['latest', true] }));
     };
     sock.onmessage = e => {
       let m;

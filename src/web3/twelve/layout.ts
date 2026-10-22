@@ -4,13 +4,11 @@
  *
  *   pool (left): pending transactions swirl in the public mempool; new ones arrive at the rim and drift inward with age
  *   chain (right): the newest block at the front, older ones receding back and to the right
- *   private relay: a point above the newest block, where transactions nobody saw in public drop in from
  */
 
 export const POOL = { x: -5.4, z: -0.6, rim: 3.1, inner: 0.7, squash: 0.78 };
 export const SLAB = 3.3;
 export const CHAIN = { x: 1.2, z: 0.9, stepX: 3.8, stepZ: -3.7, keep: 7 };
-export const PRIVATE = { x: CHAIN.x, y: 5.6, z: CHAIN.z + 1.2 };
 export const CAMERA = { position: [-2.2, 10.5, 17.5] as const, target: [-1.0, 0, -1.6] as const, fov: 40 };
 
 /** Where the block of a given age (0 = newest) sits on the chain. */

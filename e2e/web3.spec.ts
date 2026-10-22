@@ -9,8 +9,11 @@ test('Twelve Seconds plays the recording without touching the network, and every
   const sockets: string[] = [];
   page.on('websocket', ws => sockets.push(ws.url()));
   await page.goto(REPLAY);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Twelve Seconds');
-  await expect(page.locator('.w3-status')).toContainText('Replay');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Block Fart Tree');
+  await expect(page.locator('.info-state')).toHaveText('Replay');
+  // the explanation is folded away; clicking pins it open
+  await page.getByText('How to read this').click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Twelve Seconds' })).toBeVisible();
   await expect(page.locator('.w3-stage canvas')).toBeAttached();
 
   // the recording's first block lands nine seconds in
@@ -18,7 +21,12 @@ test('Twelve Seconds plays the recording without touching the network, and every
   await expect(latest).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('region', { name: /Block [\d,]+ in numbers/ })).toContainText('Base fee');
 
-  // pick a transaction from the list: its details explain what it is and how it got in
+  // the newest block is followed (and highlighted) until another is picked
+  await expect(latest).toHaveAttribute('aria-pressed', 'true');
+
+  // the transaction list opens on demand; pick one: its details explain what it is and how it got in
+  await expect(page.locator('.txlist')).toHaveCount(0);
+  await page.locator('.block-transactions > summary').click();
   const first = page.locator('.txlist button').first();
   await first.focus();
   await page.keyboard.press('Enter');
@@ -32,10 +40,6 @@ test('Twelve Seconds plays the recording without touching the network, and every
   const swap = page.getByRole('group', { name: 'Highlight in the chain' }).getByRole('button', { name: /Swap/ });
   await swap.click();
   await expect(swap).toHaveAttribute('aria-pressed', 'true');
-
-  // announcements are opt-in, then say what landed
-  await page.getByRole('button', { name: 'Announce new blocks' }).click();
-  await expect(page.getByRole('status')).toContainText(/Block [\d,]+.*transactions, \d+% seen in the public mempool first/, { timeout: 30_000 });
 
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(0);
@@ -94,4 +98,13 @@ test('the X-ray rejects a malformed hash before asking any node', async ({ page 
   await page.goto('./web3/xray/');
   await page.getByLabel('Transaction hash').fill('0x1234');
   await expect(page.getByRole('button', { name: 'X-ray', exact: true })).toBeDisabled();
+});
+
+test('Twelve Seconds draws a labelled preview block before the live node answers', async ({ page }) => {
+  // hold every WebSocket closed: the page must still show a block at once, marked as a preview
+  await page.routeWebSocket(/.*/, () => {});
+  await page.goto('./web3/twelve-seconds/');
+  await expect(page.locator('.info-state')).toHaveText('Preview');
+  await expect(page.getByRole('group', { name: 'Recent blocks' }).getByRole('button', { name: /^#26,249,566/ })).toBeVisible();
+  await expect(page.locator('.w3-metrics')).toContainText('recorded preview');
 });

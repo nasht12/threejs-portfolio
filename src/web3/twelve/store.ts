@@ -63,8 +63,8 @@ interface Web3State {
   selected: { block: number | null; tx: number | null };
   focus: Focus;
   hover: { block: number; tx: number; x: number; y: number } | null;
-  announce: boolean;
-  message: string;
+  /** showing the recorded preview block until the first live one arrives */
+  warmStart: boolean;
   /** performance.now() when this page started watching the mempool (reset on replay loops) */
   watchingSince: number;
 
@@ -76,7 +76,6 @@ interface Web3State {
   selectTx: (block: number, tx: number | null) => void;
   setFocus: (c: Focus) => void;
   setHover: (h: Web3State['hover']) => void;
-  setAnnounce: (on: boolean) => void;
 }
 
 export const pct = (b: Pick<BlockView, 'seenCount' | 'txs'>) => (b.txs.length ? Math.round((100 * b.seenCount) / b.txs.length) : 0);
@@ -90,25 +89,17 @@ export const createWeb3Store = () => create<Web3State>()((set, get) => ({
   selected: { block: null, tx: null },
   focus: null,
   hover: null,
-  announce: false,
-  message: '',
+  warmStart: false,
   watchingSince: 0,
 
   setStatus: (status, source, note = null) => set({ status, source, note }),
 
   addBlock: b => {
-    const { blocks, selected, announce } = get();
-    const replaced = blocks.some(x => x.number === b.number);
+    const { blocks, selected } = get();
+    // a block number seen twice means a competing block replaced it (a reorg): keep the newer one
     const next = [b, ...blocks.filter(x => x.number !== b.number)].sort((x, y) => y.number - x.number).slice(0, KEEP_BLOCKS);
     const keepSel = selected.block === null || next.some(x => x.number === selected.block);
-    const by = b.builder ? ` by ${b.builder}` : '';
-    set({
-      blocks: next,
-      selected: keepSel ? selected : { block: null, tx: null },
-      message: !announce ? get().message
-        : replaced ? `Block ${b.number.toLocaleString('en-US')} was replaced by a competing block (a reorg).`
-        : `Block ${b.number.toLocaleString('en-US')}${by}: ${b.txs.length} transactions, ${pct(b)}% seen in the public mempool first.`,
-    });
+    set({ blocks: next, selected: keepSel ? selected : { block: null, tx: null } });
   },
 
   setPending: (count, rate) => set({ pending: { count, rate } }),
@@ -118,7 +109,6 @@ export const createWeb3Store = () => create<Web3State>()((set, get) => ({
   selectTx: (block, tx) => set({ selected: { block, tx } }),
   setFocus: c => set({ focus: c }),
   setHover: h => set({ hover: h }),
-  setAnnounce: on => set({ announce: on, message: on ? 'New blocks will be announced.' : '' }),
 }));
 
 export const useWeb3 = createWeb3Store();

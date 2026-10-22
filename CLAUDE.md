@@ -15,7 +15,7 @@ at https://nasht12.github.io/threejs-portfolio/ by `.github/workflows/deploy.yml
 | `npm run test:e2e` | Playwright against a production build, system Chrome + SwiftShader (no GPU needed) |
 | `node scripts/capture-posters.mjs [id…]` | Re-capture poster stills for scenes without rendered video |
 | `node scripts/patch-scenes.mjs` | Wire adaptive quality into the scene pages (after re-copying them) |
-| `node scripts/record-chain.mjs [n]` | Re-record n mainnet blocks for Twelve Seconds' replay mode |
+| `node scripts/record-chain.mjs [n]` | Re-record n mainnet blocks for Twelve Seconds' replay mode; then `node scripts/make-seed.mjs` |
 | `node scripts/record-xray.mjs` | Re-save the X-ray's example transactions |
 
 Done means: typecheck, `npm test` and `npm run test:e2e` all pass. CI runs the same three before deploying.
@@ -100,6 +100,11 @@ transactions from type, recipient and selector, `fees.ts` is exact EIP-1559 inte
 this page saw it (fixed slots, outside React); `store.ts` `blockView()` matches each block against it, which is how
 "seen in public first" vs "never public" is measured. Say "as seen by one node": it's a lower bound, and the first ~30 s
 undercount. The canvas renders every frame (the pool always moves); otherwise the gallery's canvas rules apply.
+Warm start: the recording's first block (`twelve/seed.json`, from `node scripts/make-seed.mjs` after re-recording) is drawn
+at once, labelled "Preview", until the first live block; on connect the page also asks for the latest block so that
+happens within a second or two. Only transactions seen in the pool fly in; the rest appear in their slot (there is no
+honest place to draw them from). There are no new-block announcements (removed at the user's request); the info panel's
+state line says Preview / Live / Replay / Connecting.
 
 **X-ray.** `xray/load.js` fetches tx, receipt and block (publicnode), the call tree (`debug_traceTransaction` with
 `callTracer` on dRPC, optional), token metadata (one batched `eth_call`), and names for unknown selectors and event topics

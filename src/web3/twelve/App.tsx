@@ -29,30 +29,42 @@ export default function App() {
       </div>
       <Details />
       <Tooltip />
-      <Announcer />
     </div>
   );
 }
+
+const HOW_TO_READ = [
+  'Ethereum mainnet, read-only. Pending transactions wait in the public mempool; roughly every twelve seconds, a new block confirms a selection of transactions.',
+  'Grey points represent pending transactions observed by one public node. Their details become available when they are included in a block.',
+  'Each slab is a confirmed block. Colour indicates transaction type; height represents the tip paid to the block builder on a logarithmic scale.',
+  'Transactions observed in the public pool follow curved paths into the newest block. Transactions not observed by this node appear directly in their block positions, without an incoming path. They may have arrived through private order flow or simply been missed by this node.',
+  'Drag to orbit · right-drag to pan · scroll or pinch to zoom. Select a block or transaction for details.',
+];
 
 function Header() {
   const status = useWeb3(s => s.status);
   const source = useWeb3(s => s.source);
   const note = useWeb3(s => s.note);
+  const warm = useWeb3(s => s.warmStart);
+  // the panel opens on hover (where there is hover) and stays open once clicked
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const state = warm ? 'Preview' : status === 'live' ? 'Live' : status === 'replay' ? 'Replay' : 'Connecting';
   return (
-    <header className="w3-head">
+    <header className="w3-head compact-head">
       <a className="w3-back" href={`${import.meta.env.BASE_URL}web3/`}>← Web3</a>
-      <h1>Twelve Seconds</h1>
-      <p className="w3-lede">Ethereum mainnet as it happens, read-only. Transactions wait in the public mempool; every twelve seconds a block is built from some of them, and from order flow that never went public.</p>
-      <p className={`w3-status is-${status}`}>
-        <span className="w3-dot" aria-hidden="true" />
-        {status === 'live' ? 'Live' : status === 'replay' ? 'Replay' : 'Connecting'}
-        <span className="w3-muted"> · {note ?? source}</span>
-      </p>
-      <details className="w3-how">
-        <summary>How to read this</summary>
-        <p><strong>Grey points</strong> are pending transactions one public node has heard about. All it learns is their hash: what they do and what they pay stay hidden until they land.</p>
-        <p><strong>Each slab is a block</strong>, its transactions in order. Colour is what a transaction does; height is the tip it paid the block’s builder (log scale). Most blocks are assembled by specialised builders, who bid for the right to fill them.</p>
-        <p><strong>Some transactions fly in from the pool. The rest drop from above:</strong> they never went public. They reached the builder privately, through private RPCs and bundles, often so nobody could trade ahead of them.</p>
+      <h1 className="scene-title">Block Fart Tree</h1>
+      <details className="w3-how compact-info" open={pinned || hovered}
+        onMouseEnter={() => { if (matchMedia('(hover: hover)').matches) setHovered(true); }} onMouseLeave={() => setHovered(false)}>
+        <summary onClick={e => { e.preventDefault(); setPinned(!pinned); setHovered(false); }}>
+          <span><span aria-hidden="true">ⓘ </span>How to read this</span>
+          <span className="info-state">{state}</span>
+        </summary>
+        <div className="info-content">
+          <h2>Twelve Seconds</h2>
+          {HOW_TO_READ.map(text => <p key={text}>{text}</p>)}
+          <p className="info-source">{warm ? 'Recorded preview · connecting to live data' : note ?? source}</p>
+        </div>
       </details>
     </header>
   );
@@ -85,6 +97,7 @@ function Metrics() {
   const pending = useWeb3(s => s.pending);
   const following = useWeb3(s => s.selected.block === null);
   const since = useWeb3(s => s.watchingSince);
+  const warm = useWeb3(s => s.warmStart);
   if (!b) return null;
   const listened = (b.arrivedAt - since) / 1000;
   const next = nextBaseFee(b), used = b.gasUsed / b.gasLimit, privateCount = b.txs.length - b.seenCount;
@@ -113,7 +126,9 @@ function Metrics() {
       <div className="tile">
         <p className="tile-label">Seen in public first</p>
         <p className="tile-big">{pct(b)}<span>%</span></p>
-        <p className="tile-sub">{listened < 30
+        <p className="tile-sub">{warm
+          ? 'recorded preview: live data is on its way'
+          : listened < 30
           ? `warming up: the page had listened for ${Math.max(1, Math.round(listened))} s, so this undercounts`
           : `${n(privateCount)} of ${n(b.txs.length)} arrived privately`}</p>
       </div>
@@ -151,13 +166,17 @@ function Details() {
   const selected = useWeb3(s => s.selected);
   const selectBlock = useWeb3(s => s.selectBlock);
   const selectTx = useWeb3(s => s.selectTx);
+  // the list is long: collapsed until asked for, and opened when a transaction is picked in the scene
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => { if (selected.tx !== null) setExpanded(true); }, [selected.tx, selected.block]);
   return (
     <aside className="w3-details" aria-label="Blocks and transactions">
       <h2>Blocks</h2>
       <div className="blocks" role="group" aria-label="Recent blocks">
-        <button type="button" aria-pressed={selected.block === null} onClick={() => selectBlock(null)}>Follow newest</button>
-        {blocks.slice(0, 8).map(x => (
-          <button key={x.hash} type="button" aria-pressed={selected.block === x.number} onClick={() => selectBlock(x.number)}>
+        {blocks.slice(0, 8).map((x, index) => (
+          // the newest block is the one followed live: picking it again resumes following
+          <button key={x.hash} type="button" aria-pressed={selected.block === x.number || (selected.block === null && index === 0)}
+            title={index === 0 ? 'Newest block · click to follow live' : 'View this block'} onClick={() => selectBlock(index === 0 ? null : x.number)}>
             #{n(x.number)} <span className="w3-muted">{x.txs.length} tx</span>
           </button>
         ))}
@@ -165,9 +184,12 @@ function Details() {
       {b ? <BlockSummary b={b} /> : <p className="w3-muted">The first block is on its way. Blocks come every twelve seconds.</p>}
       {b && selected.tx !== null && selected.block === b.number && <TxDetail b={b} i={selected.tx} onClose={() => selectTx(b.number, null)} />}
       {b && (
-        <>
-          <h3>Transactions <span className="w3-muted">in block order</span></h3>
-          <ol className="txlist">
+        <details className="block-transactions" open={expanded} onToggle={e => setExpanded(e.currentTarget.open)}>
+          <summary>
+            Transactions <span className="transaction-count">{b.txs.length}</span>
+            <span className="transaction-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          {expanded && <ol className="txlist">
             {b.txs.map((t, i) => {
               const info = b.info[i];
               return (
@@ -181,8 +203,8 @@ function Details() {
                 </li>
               );
             })}
-          </ol>
-        </>
+          </ol>}
+        </details>
       )}
     </aside>
   );
@@ -255,18 +277,6 @@ function Tooltip() {
       <strong>{CATEGORY[info.category].label}</strong>
       <span className="mono">{info.action}</span>
       <span>{formatGwei(b.tips[hover.tx])} gwei tip · {b.seenFor[hover.tx] === null ? 'never public' : `${(b.seenFor[hover.tx]! / 1000).toFixed(1)} s in the mempool`}</span>
-    </div>
-  );
-}
-
-function Announcer() {
-  const on = useWeb3(s => s.announce);
-  const message = useWeb3(s => s.message);
-  const setAnnounce = useWeb3(s => s.setAnnounce);
-  return (
-    <div className="w3-announce">
-      <button type="button" aria-pressed={on} onClick={() => setAnnounce(!on)}>Announce new blocks</button>
-      <p className="sr-only" role="status" aria-live="polite">{message}</p>
     </div>
   );
 }

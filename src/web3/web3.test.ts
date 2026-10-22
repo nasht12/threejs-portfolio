@@ -100,15 +100,13 @@ describe('the store', () => {
   it('keeps blocks newest first, replaces a reorged block, and follows the newest unless one is picked', () => {
     const s = createWeb3Store();
     const pool = createPool(4);
-    s.getState().setAnnounce(true);
     s.getState().addBlock(blockView(block([tx()], { number: 1, hash: '0x1' }), pool, 0));
     s.getState().addBlock(blockView(block([tx()], { number: 2, hash: '0x2' }), pool, 0));
     expect(currentBlock(s.getState())?.number).toBe(2);
     s.getState().selectBlock(1);
     expect(currentBlock(s.getState())?.number).toBe(1);
     s.getState().addBlock(blockView(block([tx(), tx()], { number: 2, hash: '0x2b' }), pool, 0));
-    expect(s.getState().blocks.map(b => b.hash)).toEqual(['0x2b', '0x1']);
-    expect(s.getState().message).toMatch(/reorg/);
+    expect(s.getState().blocks.map(b => b.hash)).toEqual(['0x2b', '0x1']);   // the competing block replaced the first
   });
 });
 
